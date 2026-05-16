@@ -16,7 +16,7 @@ const PJM_API_KEY = process.env.PJM_API_KEY || "";
 const PJM_AUTH_MODE = (process.env.PJM_AUTH_MODE || "header").toLowerCase();
 const PJM_TIMEOUT_SECONDS = Number(process.env.PJM_TIMEOUT_SECONDS || 30);
 const PJM_RATE_LIMIT_PER_MINUTE = Number(process.env.PJM_RATE_LIMIT_PER_MINUTE || 6);
-const OPENROUTER_MODEL = process.env.OPENROUTER_MODEL || "google/gemini-2.5-flash";
+const OPENROUTER_MODEL = process.env.OPENROUTER_MODEL || "google/gemini-3.1-flash-lite";
 
 const ZONE_PNODES = {
   "PJM-RTO": 1,
@@ -381,7 +381,9 @@ async function handleAnalysis(req, res) {
     });
     const json = await response.json().catch(() => ({}));
     if (!response.ok) {
-      sendJson(res, response.status, { error: "OpenRouter request failed", detail: json });
+      const msg = json?.error?.message || json?.message || json?.error || `HTTP ${response.status}`;
+      console.error(`OpenRouter error ${response.status}:`, JSON.stringify(json).slice(0, 400));
+      sendJson(res, response.status, { error: `OpenRouter: ${msg}`, detail: json });
       return;
     }
     sendJson(res, 200, {
@@ -389,6 +391,11 @@ async function handleAnalysis(req, res) {
       analysis: json.choices?.[0]?.message?.content || "",
       rawUsage: json.usage || null
     });
+  } catch (err) {
+    clearTimeout(timeout);
+    const msg = err.name === "AbortError" ? `OpenRouter: timed out after ${PJM_TIMEOUT_SECONDS}s` : `OpenRouter: ${err.message}`;
+    console.error("Analysis error:", err.message);
+    sendJson(res, 502, { error: msg });
   } finally {
     clearTimeout(timeout);
   }
