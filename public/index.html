@@ -1046,6 +1046,25 @@
       </div>
       <div class="c-list" id="rt-binding-list"><div class="empty">Awaiting data…</div></div>
     </section>
+
+    <section class="panel">
+      <div class="panel-head">
+        <div class="panel-head-left">
+          <span class="panel-title">Market Analysis</span>
+          <span class="ai-tag"><span class="ai-dot"></span>AI</span>
+        </div>
+        <div class="panel-head-right">
+          <span class="panel-sub" style="border:none;padding:0;" id="rt-analysis-model-tag">OpenRouter</span>
+          <button id="rt-btn-analysis" class="btn-run">
+            <svg viewBox="0 0 12 12" fill="none"><path d="M3 2.5l6 3.5-6 3.5v-7z" fill="currentColor"/></svg>
+            Run
+          </button>
+        </div>
+      </div>
+      <div class="ai-body" id="rt-analysis-content">
+        <p style="color:var(--text-mute);">Click <b style="color:var(--violet);">Run</b> to generate a narrative summary of real-time volatility, congestion drivers, and notable price events.</p>
+      </div>
+    </section>
   </div><!-- end #section-rt -->
 
   <!-- ═══ DART section ═══ -->
@@ -1125,6 +1144,25 @@
       </div>
       <div id="dart-table-wrap" style="overflow-x:auto;max-height:440px;overflow-y:auto;">
         <div class="empty">Awaiting data…</div>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head">
+        <div class="panel-head-left">
+          <span class="panel-title">Market Analysis</span>
+          <span class="ai-tag"><span class="ai-dot"></span>AI</span>
+        </div>
+        <div class="panel-head-right">
+          <span class="panel-sub" style="border:none;padding:0;" id="dart-analysis-model-tag">OpenRouter</span>
+          <button id="dart-btn-analysis" class="btn-run">
+            <svg viewBox="0 0 12 12" fill="none"><path d="M3 2.5l6 3.5-6 3.5v-7z" fill="currentColor"/></svg>
+            Run
+          </button>
+        </div>
+      </div>
+      <div class="ai-body" id="dart-analysis-content">
+        <p style="color:var(--text-mute);">Click <b style="color:var(--violet);">Run</b> to generate a narrative summary of DA vs RT spread drivers, trading implications, and hourly divergences.</p>
       </div>
     </section>
   </div><!-- end #section-dart -->
@@ -1292,11 +1330,18 @@ async function loadStatus() {
   if (dartZoneSel) dartZoneSel.innerHTML = zones.map(z => `<option value="${esc(z)}"${z === S.dartZone ? ' selected' : ''}>${esc(z)}</option>`).join('');
 
   if (d.openRouterConfigured) {
-    el('analysis-model-tag').textContent = trunc(d.openRouterModel ?? 'OpenRouter', 28);
+    const modelLabel = trunc(d.openRouterModel ?? 'OpenRouter', 28);
+    ['analysis-model-tag','rt-analysis-model-tag','dart-analysis-model-tag'].forEach(id => {
+      const el2 = el(id); if (el2) el2.textContent = modelLabel;
+    });
   } else {
-    el('analysis-model-tag').textContent = 'No API key';
-    el('btn-analysis').disabled = true;
-    el('btn-analysis').title = 'OPENROUTER_API_KEY not configured';
+    ['analysis-model-tag','rt-analysis-model-tag','dart-analysis-model-tag'].forEach(id => {
+      const el2 = el(id); if (el2) el2.textContent = 'No API key';
+    });
+    ['btn-analysis','rt-btn-analysis','dart-btn-analysis'].forEach(id => {
+      const btn = el(id);
+      if (btn) { btn.disabled = true; btn.title = 'OPENROUTER_API_KEY not configured'; }
+    });
   }
 }
 
@@ -1976,35 +2021,14 @@ function renderEvents() {
 }
 
 /* ─── AI Analysis ─── */
-async function triggerAnalysis() {
-  const btn = el('btn-analysis');
+async function runAnalysis(btnId, contentId, mdId, buildPayload) {
+  const btn = el(btnId);
   btn.disabled = true;
   btn.innerHTML = `<svg viewBox="0 0 12 12" fill="none"><path d="M3 2.5l6 3.5-6 3.5v-7z" fill="currentColor"/></svg>Running…`;
-  el('analysis-content').innerHTML = `<p style="color:var(--text-mute);">Generating analysis…</p>`;
+  el(contentId).innerHTML = `<p style="color:var(--text-mute);">Generating analysis…</p>`;
 
   try {
-    const common = { binding: S.binding, transmission: S.transmission, renewables: S.renewables };
-    let payload;
-    if (S.mode === 'compare') {
-      payload = { context: { mode: 'compare', zone1: S.zone1, zone2: S.zone2, area: S.area, date: S.date }, lmp1: S.lmp1, lmp2: S.lmp2, ...common };
-    } else if (S.mode === 'multi') {
-      payload = {
-        context: { mode: 'multi', zones: S.multiZones.filter(Boolean), area: S.area, date: S.date },
-        lmpZones: S.multiZones.map((z, i) => z ? { zone: z, summary: S.lmpMulti[i]?.summary, rows: S.lmpMulti[i]?.rows } : null).filter(Boolean),
-        ...common
-      };
-    } else if (S.mode === 'custom') {
-      const pnodeName = S.lmpCustom?.rows?.[0]?.pnode_name || `PNode ${S.pnodeId}`;
-      payload = {
-        context: { mode: 'custom', pnodeId: S.pnodeId, pnodeName, compareZones: S.customCompare.filter(Boolean), area: S.area, date: S.date },
-        lmp: S.lmpCustom,
-        lmpCompare: S.lmpCustomZones.filter(Boolean),
-        ...common
-      };
-    } else {
-      payload = { context: { mode: 'single', zone: S.zone1, area: S.area, date: S.date }, lmp: S.lmp1, ...common };
-    }
-
+    const payload = buildPayload();
     const r = await fetch('/api/analysis', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', ...(_token ? { Authorization: `Bearer ${_token}` } : {}) },
@@ -2019,19 +2043,61 @@ async function triggerAnalysis() {
     const model = String(json.model ?? 'AI');
     const ts    = new Date().toLocaleString('en-US', { hour12: false }) + ' EPT';
 
-    el('analysis-content').innerHTML = `
+    el(contentId).innerHTML = `
       <div class="ai-meta">
         <span style="display:inline-flex;align-items:center;gap:6px;"><span class="ai-dot"></span>${esc(model)}</span>
         <span>${esc(ts)}</span>
       </div>
-      <div id="analysis-md"></div>`;
-    renderMarkdown(el('analysis-md'), json.analysis ?? '');
+      <div id="${mdId}"></div>`;
+    renderMarkdown(el(mdId), json.analysis ?? '');
   } catch (err) {
-    el('analysis-content').innerHTML = `<p class="error-msg">Analysis failed: ${esc(err.message)}</p>`;
+    el(contentId).innerHTML = `<p class="error-msg">Analysis failed: ${esc(err.message)}</p>`;
   } finally {
     btn.disabled = false;
     btn.innerHTML = `<svg viewBox="0 0 12 12" fill="none"><path d="M3 2.5l6 3.5-6 3.5v-7z" fill="currentColor"/></svg>Run`;
   }
+}
+
+function triggerAnalysis() {
+  const common = { binding: S.binding, transmission: S.transmission, renewables: S.renewables };
+  return runAnalysis('btn-analysis', 'analysis-content', 'analysis-md', () => {
+    if (S.mode === 'compare') {
+      return { context: { mode: 'compare', zone1: S.zone1, zone2: S.zone2, area: S.area, date: S.date }, lmp1: S.lmp1, lmp2: S.lmp2, ...common };
+    } else if (S.mode === 'multi') {
+      return {
+        context: { mode: 'multi', zones: S.multiZones.filter(Boolean), area: S.area, date: S.date },
+        lmpZones: S.multiZones.map((z, i) => z ? { zone: z, summary: S.lmpMulti[i]?.summary, rows: S.lmpMulti[i]?.rows } : null).filter(Boolean),
+        ...common
+      };
+    } else if (S.mode === 'custom') {
+      const pnodeName = S.lmpCustom?.rows?.[0]?.pnode_name || `PNode ${S.pnodeId}`;
+      return {
+        context: { mode: 'custom', pnodeId: S.pnodeId, pnodeName, compareZones: S.customCompare.filter(Boolean), area: S.area, date: S.date },
+        lmp: S.lmpCustom,
+        lmpCompare: S.lmpCustomZones.filter(Boolean),
+        ...common
+      };
+    } else {
+      return { context: { mode: 'single', zone: S.zone1, area: S.area, date: S.date }, lmp: S.lmp1, ...common };
+    }
+  });
+}
+
+function triggerRtAnalysis() {
+  return runAnalysis('rt-btn-analysis', 'rt-analysis-content', 'rt-analysis-md', () => ({
+    context: { mode: 'rt', zone: S.rtZone, date: S.rtDate, granularity: S.rtGranularity },
+    lmpRt: S.rtData,
+    rtBinding: S.rtBinding
+  }));
+}
+
+function triggerDartAnalysis() {
+  return runAnalysis('dart-btn-analysis', 'dart-analysis-content', 'dart-analysis-md', () => ({
+    context: { mode: 'dart', zone: S.dartZone, date: S.dartDate },
+    lmpDa: S.dartDaData,
+    lmpRt: S.dartRtData,
+    dartHourly: S.dartHourly
+  }));
 }
 
 function renderMarkdown(container, raw) {
@@ -2509,6 +2575,8 @@ el('next-day').addEventListener('click', nextDay);
 el('today-btn').addEventListener('click', goToday);
 el('refresh-btn').addEventListener('click', () => loadAll());
 el('btn-analysis').addEventListener('click', triggerAnalysis);
+el('rt-btn-analysis').addEventListener('click', triggerRtAnalysis);
+el('dart-btn-analysis').addEventListener('click', triggerDartAnalysis);
 
 /* ─── PNode Autocomplete ─── */
 let _acTimer = null, _acItems = [], _acIdx = -1;

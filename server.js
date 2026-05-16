@@ -342,17 +342,36 @@ async function handleAnalysis(req, res) {
   const modeGuide = {
     single:  "Analyze this single-zone PJM day-ahead market snapshot.",
     compare: "Analyze this two-zone PJM day-ahead comparison. Explain the basis spread: what drives it (congestion, topology, generation mix), how it evolves by hour, and practical trading or hedging implications. Add a Basis Analysis section.",
-    multi:   "Analyze this multi-zone PJM day-ahead snapshot. Rank zones by average LMP, identify the most congested zones, flag any significant divergence or convergence between zones, and note shared price drivers. Add a Zone Rankings section."
+    multi:   "Analyze this multi-zone PJM day-ahead snapshot. Rank zones by average LMP, identify the most congested zones, flag any significant divergence or convergence between zones, and note shared price drivers. Add a Zone Rankings section.",
+    rt:      "Analyze this PJM real-time LMP feed. Identify price volatility patterns, congestion events, and notable spikes. Distinguish system-energy vs congestion contributions to price moves. Flag any intervals where congestion dominated. Add Volatility Events and Congestion Drivers sections.",
+    dart:    "Analyze this PJM DA vs RT (DART) spread. Explain what drove RT above or below DA commitments each hour — surprise congestion, system energy deviations, or unforecasted load. Quantify the largest divergences and note practical trading/hedging implications. Add DART Drivers and Trading Implications sections."
   };
 
-  const extraSections = mode === "compare" ? ", Basis Analysis" : mode === "multi" ? ", Zone Rankings" : mode === "custom" ? ", PNode vs Zone Spread" : "";
-  const maxTokens    = mode === "multi" ? 2000 : mode === "compare" || mode === "custom" ? 1600 : 1200;
+  const extraSections = {
+    compare: ", Basis Analysis",
+    multi:   ", Zone Rankings",
+    custom:  ", PNode vs Zone Spread",
+    rt:      ", Volatility Events, Congestion Drivers",
+    dart:    ", DART Drivers, Trading Implications"
+  }[mode] ?? "";
+
+  const maxTokens = { multi: 2000, compare: 1600, custom: 1600, rt: 1400, dart: 1600 }[mode] ?? 1200;
+
+  const isRt   = mode === "rt";
+  const isDart = mode === "dart";
+  const intro  = isRt   ? "You are analyzing PJM real-time market data for a power-market operator."
+               : isDart ? "You are analyzing PJM day-ahead vs real-time spread data for a power-market operator."
+               :          "You are analyzing PJM day-ahead market data for a power-market operator.";
+
+  const sections = isRt   ? "Executive Read, Price Drivers, Volatility Events, Congestion Drivers, Watch Items"
+                 : isDart ? "Executive Read, DART Drivers, Hour Analysis, Trading Implications, Watch Items"
+                 :          `Executive Read, Price Drivers, Constraints, Renewables, Watch Items${extraSections}`;
 
   const prompt = [
-    "You are analyzing PJM day-ahead market data for a power-market operator.",
+    intro,
     "Use the supplied JSON only. Be concise, specific, and cite observed values.",
     modeGuide[mode] ?? modeGuide.single,
-    `Return markdown with sections: Executive Read, Price Drivers, Constraints, Renewables, Watch Items${extraSections}.`,
+    `Return markdown with sections: ${sections}.`,
     "",
     JSON.stringify(payload, null, 2)
   ].join("\n");
@@ -605,6 +624,43 @@ function shrinkForModel(body) {
       lmpHourly: lmpRows(body?.lmp?.rows || []),
       lmpCompare: (body?.lmpCompare || []).map((z) => ({
         zone: z?.zone, summary: z?.summary, hourly: lmpRows(z?.rows || [])
+      }))
+    };
+  }
+
+  if (mode === "rt") {
+    return {
+      mode,
+      zone: body?.context?.zone,
+      date: body?.context?.date,
+      granularity: body?.context?.granularity,
+      lmpSummary: body?.lmpRt?.summary,
+      lmpHourly: (body?.lmpRt?.rows || []).map(r => ({
+        time: r.datetime_beginning_ept,
+        lmp: r.total_lmp_rt,
+        energy: r.system_energy_price_rt,
+        congestion: r.congestion_price_rt,
+        loss: r.marginal_loss_price_rt
+      })),
+      rtBindingSummary: body?.rtBinding?.summary,
+      topRtBinding: (body?.rtBinding?.rows || []).slice(0, 25)
+    };
+  }
+
+  if (mode === "dart") {
+    return {
+      mode,
+      zone: body?.context?.zone,
+      date: body?.context?.date,
+      daSummary: body?.lmpDa?.summary,
+      rtSummary: body?.lmpRt?.summary,
+      dartHourly: (body?.dartHourly || []).map(r => ({
+        he: r.he,
+        da: r.da,
+        rt: r.rt,
+        dart: r.dart,
+        daCong: r.daCong,
+        rtCong: r.rtCong
       }))
     };
   }
