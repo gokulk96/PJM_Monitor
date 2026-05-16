@@ -241,8 +241,8 @@ async function handleAnalysis(req, res) {
     multi:   "Analyze this multi-zone PJM day-ahead snapshot. Rank zones by average LMP, identify the most congested zones, flag any significant divergence or convergence between zones, and note shared price drivers. Add a Zone Rankings section."
   };
 
-  const extraSections = mode === "compare" ? ", Basis Analysis" : mode === "multi" ? ", Zone Rankings" : "";
-  const maxTokens    = mode === "multi" ? 2000 : mode === "compare" ? 1600 : 1200;
+  const extraSections = mode === "compare" ? ", Basis Analysis" : mode === "multi" ? ", Zone Rankings" : mode === "custom" ? ", PNode vs Zone Spread" : "";
+  const maxTokens    = mode === "multi" ? 2000 : mode === "compare" || mode === "custom" ? 1600 : 1200;
 
   const prompt = [
     "You are analyzing PJM day-ahead market data for a power-market operator.",
@@ -480,6 +480,20 @@ function shrinkForModel(body) {
         zone: z.zone,
         summary: z.summary,
         hourly: lmpRows(z.rows || [])
+      }))
+    };
+  }
+
+  if (mode === "custom") {
+    return {
+      ...shared,
+      pnodeId: body?.context?.pnodeId,
+      pnodeName: body?.context?.pnodeName,
+      compareZones: body?.context?.compareZones,
+      lmpSummary: body?.lmp?.summary,
+      lmpHourly: lmpRows(body?.lmp?.rows || []),
+      lmpCompare: (body?.lmpCompare || []).map((z) => ({
+        zone: z?.zone, summary: z?.summary, hourly: lmpRows(z?.rows || [])
       }))
     };
   }
