@@ -381,7 +381,9 @@ async function handleAnalysis(req, res) {
     });
     const json = await response.json().catch(() => ({}));
     if (!response.ok) {
-      sendJson(res, response.status, { error: "OpenRouter request failed", detail: json });
+      const msg = json?.error?.message || json?.message || json?.error || `HTTP ${response.status}`;
+      console.error(`OpenRouter error ${response.status}:`, JSON.stringify(json).slice(0, 400));
+      sendJson(res, response.status, { error: `OpenRouter: ${msg}`, detail: json });
       return;
     }
     sendJson(res, 200, {
@@ -389,6 +391,11 @@ async function handleAnalysis(req, res) {
       analysis: json.choices?.[0]?.message?.content || "",
       rawUsage: json.usage || null
     });
+  } catch (err) {
+    clearTimeout(timeout);
+    const msg = err.name === "AbortError" ? `OpenRouter: timed out after ${PJM_TIMEOUT_SECONDS}s` : `OpenRouter: ${err.message}`;
+    console.error("Analysis error:", err.message);
+    sendJson(res, 502, { error: msg });
   } finally {
     clearTimeout(timeout);
   }

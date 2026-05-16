@@ -2011,7 +2011,10 @@ async function triggerAnalysis() {
       body: JSON.stringify(payload)
     });
     const json = await r.json();
-    if (json.error) throw new Error(String(json.error));
+    if (json.error) {
+      const detail = json.detail?.error?.message || json.detail?.message || '';
+      throw new Error(detail ? `${json.error} — ${detail}` : String(json.error));
+    }
 
     const model = String(json.model ?? 'AI');
     const ts    = new Date().toLocaleString('en-US', { hour12: false }) + ' EPT';
