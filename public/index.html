@@ -4,548 +4,755 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>PJM Market Monitor</title>
-<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
   :root {
-    --bg: #0a0d10;
-    --bg2: #0f1318;
-    --bg3: #151b22;
-    --bg4: #1c242e;
-    --border: rgba(255,255,255,0.07);
-    --border2: rgba(255,255,255,0.12);
-    --text: #e8edf2;
-    --text2: #7a8a9a;
-    --text3: #4a5a6a;
-    --accent: #00d4ff;
-    --accent2: #0099cc;
-    --green: #00e676;
-    --red: #ff4444;
-    --amber: #ffaa00;
-    --purple: #9b7fe8;
-    --mono: 'IBM Plex Mono', monospace;
-    --sans: 'IBM Plex Sans', sans-serif;
+    --bg:        #0a0b0d;
+    --bg-rise:   #0e1014;
+    --surface-1: #131519;
+    --surface-2: #181b20;
+    --surface-3: #1f2329;
+    --surface-hover: #1c1f25;
+
+    --line:        rgba(255,255,255,0.05);
+    --line-strong: rgba(255,255,255,0.09);
+    --line-focus:  rgba(255,255,255,0.18);
+
+    --text:      #ececee;
+    --text-soft: #b8bbc0;
+    --text-mute: #7d8189;
+    --text-dim:  #565a62;
+
+    --blue:     oklch(72% 0.14 235);
+    --blue-2:   oklch(78% 0.12 230);
+    --blue-bg:  oklch(72% 0.14 235 / 0.12);
+    --green:    oklch(74% 0.16 155);
+    --green-bg: oklch(74% 0.16 155 / 0.12);
+    --red:      oklch(67% 0.20 25);
+    --red-2:    oklch(73% 0.18 25);
+    --red-bg:   oklch(67% 0.20 25 / 0.13);
+    --amber:    oklch(80% 0.14 75);
+    --amber-bg: oklch(80% 0.14 75 / 0.12);
+    --violet:   oklch(72% 0.16 295);
+    --violet-bg:oklch(72% 0.16 295 / 0.12);
+
+    --sans: 'Geist', ui-sans-serif, system-ui, -apple-system, sans-serif;
+    --mono: 'Geist Mono', ui-monospace, 'JetBrains Mono', monospace;
+
+    --radius-sm: 4px;
+    --radius:    8px;
+    --radius-lg: 12px;
   }
 
   html { background: var(--bg); color: var(--text); font-family: var(--sans); font-size: 14px; line-height: 1.5; }
-  body { min-height: 100vh; overflow-x: hidden; }
+  body { min-height: 100vh; overflow-x: hidden; font-feature-settings: 'ss01','cv11'; }
 
   body::before {
     content: '';
     position: fixed; inset: 0;
-    background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,0.03) 2px, rgba(0,0,0,0.03) 4px);
-    pointer-events: none; z-index: 1000;
+    background:
+      radial-gradient(900px 600px at 12% -10%, oklch(50% 0.06 235 / 0.12), transparent 60%),
+      radial-gradient(900px 600px at 100% 0%, oklch(50% 0.05 295 / 0.08), transparent 60%);
+    pointer-events: none; z-index: 0;
   }
 
+  ::selection { background: var(--blue-bg); color: var(--text); }
+  a { color: inherit; text-decoration: none; }
+  button { font: inherit; color: inherit; cursor: pointer; }
+
+  /* ─── Header ─── */
   header {
+    position: sticky; top: 0; z-index: 50;
     display: flex; align-items: center; justify-content: space-between;
-    padding: 0 24px; height: 52px;
-    border-bottom: 1px solid var(--border);
-    background: var(--bg2);
-    position: sticky; top: 0; z-index: 100;
+    padding: 0 28px; height: 56px;
+    background: rgba(10,11,13,0.78);
+    backdrop-filter: blur(14px) saturate(140%);
+    -webkit-backdrop-filter: blur(14px) saturate(140%);
+    border-bottom: 1px solid var(--line);
   }
-  .logo { display: flex; align-items: center; gap: 10px; }
-  .logo-mark {
-    width: 28px; height: 28px; border: 1.5px solid var(--accent);
-    display: grid; place-items: center; font-family: var(--mono); font-size: 10px;
-    color: var(--accent); letter-spacing: 0.05em;
+  .brand { display: flex; align-items: center; gap: 12px; }
+  .brand-mark {
+    width: 30px; height: 30px; border-radius: 7px;
+    background: linear-gradient(140deg, var(--blue) 0%, oklch(55% 0.13 260) 100%);
+    display: grid; place-items: center;
+    font-family: var(--mono); font-weight: 500; font-size: 11px; color: #0a0b0d;
+    letter-spacing: 0.04em;
+    box-shadow: 0 0 0 1px rgba(255,255,255,0.06) inset, 0 10px 22px -10px var(--blue-bg);
   }
-  .logo-text { font-family: var(--mono); font-size: 13px; font-weight: 500; letter-spacing: 0.1em; color: var(--text); text-transform: uppercase; }
-  .logo-sub { font-size: 10px; color: var(--text3); font-family: var(--mono); letter-spacing: 0.08em; }
+  .brand-text { display: flex; flex-direction: column; line-height: 1.15; }
+  .brand-title { font-size: 13.5px; font-weight: 500; letter-spacing: -0.005em; }
+  .brand-sub { font-family: var(--mono); font-size: 10.5px; color: var(--text-mute); letter-spacing: 0.01em; }
 
-  .header-right { display: flex; align-items: center; gap: 20px; }
-  .status-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--text3); transition: background 0.4s; }
-  .status-dot.live { background: var(--green); animation: pulse 2s infinite; }
-  .status-dot.error { background: var(--red); }
-  .status-dot.loading { background: var(--amber); animation: pulse-amber 0.8s infinite; }
-  @keyframes pulse { 0%,100% { opacity:1; box-shadow: 0 0 0 0 rgba(0,230,118,0.4); } 50% { opacity:0.8; box-shadow: 0 0 0 5px rgba(0,230,118,0); } }
-  @keyframes pulse-amber { 0%,100% { opacity:1; } 50% { opacity:0.4; } }
-  .status-label { font-family: var(--mono); font-size: 11px; color: var(--text2); display: flex; align-items: center; gap: 6px; }
-  #clock { font-family: var(--mono); font-size: 12px; color: var(--accent); }
-  .refresh-btn {
-    font-family: var(--mono); font-size: 11px; color: var(--text2);
-    border: 1px solid var(--border2); background: transparent;
-    padding: 5px 12px; cursor: pointer; letter-spacing: 0.05em;
-    transition: all 0.2s;
+  .header-mid { display: flex; align-items: center; gap: 8px; }
+  .nav-pill {
+    font-size: 12.5px; color: var(--text-mute);
+    padding: 6px 12px; border-radius: 999px;
+    transition: color .15s, background .15s;
   }
-  .refresh-btn:hover:not(:disabled) { color: var(--accent); border-color: var(--accent); }
-  .refresh-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+  .nav-pill:hover { color: var(--text-soft); background: var(--surface-1); }
+  .nav-pill.active { color: var(--text); background: var(--surface-2); }
 
-  main { padding: 20px 24px; max-width: 1400px; margin: 0 auto; }
+  .header-right { display: flex; align-items: center; gap: 14px; }
 
-  .date-bar {
+  .live-pill {
+    display: inline-flex; align-items: center; gap: 8px;
+    height: 28px; padding: 0 11px;
+    border-radius: 999px;
+    background: var(--surface-1);
+    border: 1px solid var(--line);
+    font-family: var(--mono); font-size: 11px; color: var(--text-soft);
+  }
+  .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--text-dim); flex-shrink: 0; }
+  .dot.live { background: var(--green); box-shadow: 0 0 0 0 oklch(74% 0.16 155 / 0.6); animation: ringPulse 2.2s ease-out infinite; }
+  .dot.loading { background: var(--amber); animation: blink .8s ease-in-out infinite; }
+  .dot.error { background: var(--red); }
+  @keyframes ringPulse { 0%{box-shadow:0 0 0 0 oklch(74% 0.16 155 / .55)} 80%,100%{box-shadow:0 0 0 8px oklch(74% 0.16 155 / 0)} }
+  @keyframes blink { 50% { opacity: .35; } }
+
+  #clock { font-family: var(--mono); font-size: 12px; color: var(--text-soft); }
+
+  .icon-btn {
+    width: 32px; height: 32px; border-radius: 7px;
+    background: transparent; border: 1px solid transparent;
+    display: grid; place-items: center; color: var(--text-mute);
+    transition: all .15s;
+  }
+  .icon-btn:hover { color: var(--text); background: var(--surface-1); border-color: var(--line); }
+  .icon-btn:disabled { opacity: .35; cursor: not-allowed; }
+  .icon-btn svg { width: 15px; height: 15px; }
+
+  /* ─── Layout ─── */
+  main { position: relative; z-index: 1; padding: 24px 28px 60px; max-width: 1640px; margin: 0 auto; }
+
+  /* ─── Toolbar ─── */
+  .toolbar {
     display: flex; align-items: center; justify-content: space-between;
-    margin-bottom: 20px; padding-bottom: 14px;
-    border-bottom: 1px solid var(--border);
-    flex-wrap: wrap; gap: 12px;
+    gap: 16px; margin-bottom: 22px; flex-wrap: wrap;
   }
-  .date-label { font-family: var(--mono); font-size: 11px; color: var(--text3); letter-spacing: 0.1em; text-transform: uppercase; }
-  .date-val { font-family: var(--mono); font-size: 13px; color: var(--text); }
-  .date-nav { display: flex; gap: 8px; }
-  .date-nav button {
-    font-family: var(--mono); font-size: 11px; color: var(--text2);
-    border: 1px solid var(--border); background: transparent;
-    padding: 4px 10px; cursor: pointer; transition: all 0.15s;
-  }
-  .date-nav button:hover { color: var(--text); border-color: var(--border2); }
-  .date-nav button.active { color: var(--accent); border-color: var(--accent); }
+  .toolbar-left { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+  .toolbar-right { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 
-  select.zone-select {
-    font-family: var(--mono); font-size: 11px; color: var(--text2);
-    border: 1px solid var(--border); background: var(--bg2);
-    padding: 4px 8px; cursor: pointer; transition: all 0.15s;
-    -webkit-appearance: none; appearance: none;
+  .date-block { display: flex; align-items: baseline; gap: 10px; }
+  .date-block h1 { font-size: 22px; font-weight: 500; letter-spacing: -0.015em; line-height: 1.1; }
+  .date-block .day { font-family: var(--mono); font-size: 11.5px; color: var(--text-mute); }
+  .tag-da {
+    font-family: var(--mono); font-size: 10px; padding: 2.5px 7px;
+    border-radius: 4px; background: var(--blue-bg); color: var(--blue-2);
+    letter-spacing: 0.03em;
   }
-  select.zone-select:focus { outline: none; border-color: var(--accent); color: var(--accent); }
-  select.zone-select option { background: var(--bg2); color: var(--text); }
-  .selector-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-  .selector-lbl { font-family: var(--mono); font-size: 10px; color: var(--text3); letter-spacing: 0.06em; }
 
-  .kpi-row { display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; margin-bottom: 20px; }
+  .stepper {
+    display: inline-flex; align-items: center;
+    background: var(--surface-1); border: 1px solid var(--line);
+    border-radius: 8px; overflow: hidden;
+  }
+  .stepper button {
+    width: 30px; height: 32px; background: transparent; border: none;
+    color: var(--text-mute); display: grid; place-items: center; transition: all .12s;
+  }
+  .stepper button:hover { color: var(--text); background: var(--surface-2); }
+  .stepper button svg { width: 14px; height: 14px; }
+  .stepper input {
+    height: 32px; border: none; background: transparent;
+    border-left: 1px solid var(--line); border-right: 1px solid var(--line);
+    color: var(--text); font-family: var(--mono); font-size: 12px;
+    padding: 0 10px; width: 130px; color-scheme: dark;
+  }
+  .stepper input:focus { outline: none; background: var(--surface-2); }
+  .stepper .today-btn { font-family: var(--mono); font-size: 11px; padding: 0 12px; height: 32px; border: none; background: transparent; }
+
+  .seg {
+    display: inline-flex; padding: 3px; gap: 2px;
+    background: var(--surface-1); border: 1px solid var(--line); border-radius: 8px;
+  }
+  .seg button {
+    font-family: var(--mono); font-size: 11px; letter-spacing: 0.02em;
+    padding: 5px 12px; border-radius: 5px; background: transparent;
+    border: none; color: var(--text-mute); transition: all .15s;
+  }
+  .seg button:hover { color: var(--text-soft); }
+  .seg button.active { background: var(--surface-3); color: var(--text); box-shadow: 0 1px 0 rgba(255,255,255,0.05) inset; }
+
+  .selector-label {
+    font-family: var(--mono); font-size: 10px; color: var(--text-dim);
+    letter-spacing: 0.06em; text-transform: uppercase;
+  }
+  .zone-select {
+    font-family: var(--mono); font-size: 11.5px; color: var(--text-soft);
+    background: var(--surface-1); border: 1px solid var(--line);
+    border-radius: 6px; padding: 6px 26px 6px 10px; cursor: pointer;
+    appearance: none; -webkit-appearance: none;
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'><path d='M3 4.5l3 3 3-3' stroke='%237d8189' stroke-width='1.4' fill='none' stroke-linecap='round'/></svg>");
+    background-repeat: no-repeat; background-position: right 8px center;
+    transition: all .12s;
+  }
+  .zone-select:hover { color: var(--text); border-color: var(--line-strong); }
+  .zone-select:focus { outline: none; border-color: var(--blue); color: var(--text); }
+  .zone-select option { background: var(--surface-2); color: var(--text); }
+
+  .vs-label { font-family: var(--mono); font-size: 11px; color: var(--text-dim); padding: 0 2px; }
+
+  /* ─── KPI strip ─── */
+  .kpi-row { display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; margin-bottom: 22px; }
   .kpi {
-    background: var(--bg2); border: 1px solid var(--border);
-    padding: 14px 16px; position: relative; overflow: hidden;
+    position: relative; overflow: hidden;
+    background: linear-gradient(180deg, oklch(20% 0.005 250 / 0.6) 0%, transparent 80%), var(--surface-1);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-lg);
+    padding: 14px 16px 12px;
+    display: flex; flex-direction: column; gap: 8px;
+    transition: border-color .2s;
   }
-  .kpi::before {
-    content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px;
-    background: var(--accent-color, var(--accent));
+  .kpi:hover { border-color: var(--line-strong); }
+  .kpi-head { display: flex; align-items: center; justify-content: space-between; }
+  .kpi-label { font-size: 11.5px; color: var(--text-mute); letter-spacing: 0.005em; display: flex; align-items: center; gap: 6px; }
+  .kpi-zone-chip {
+    font-family: var(--mono); font-size: 9.5px; color: var(--text-soft);
+    padding: 1.5px 6px; border-radius: 4px; background: var(--surface-3); letter-spacing: 0.03em;
   }
-  .kpi-label { font-family: var(--mono); font-size: 10px; color: var(--text3); letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 8px; }
-  .kpi-val { font-family: var(--mono); font-size: 22px; font-weight: 500; color: var(--kpi-color, var(--text)); line-height: 1; }
-  .kpi-sub { font-family: var(--mono); font-size: 10px; color: var(--text3); margin-top: 5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .kpi-badge {
-    position: absolute; top: 14px; right: 14px;
-    font-family: var(--mono); font-size: 10px; padding: 2px 7px;
-    background: var(--badge-bg, rgba(0,212,255,0.1));
-    color: var(--badge-color, var(--accent));
-    letter-spacing: 0.05em;
+  .kpi-delta {
+    font-family: var(--mono); font-size: 11px; padding: 2px 6px; border-radius: 4px;
+    background: var(--surface-2); color: var(--text-mute);
+    display: inline-flex; align-items: center; gap: 3px;
+  }
+  .kpi-delta.up   { color: var(--green);  background: var(--green-bg); }
+  .kpi-delta.down { color: var(--red-2);  background: var(--red-bg); }
+  .kpi-delta.warn { color: var(--amber);  background: var(--amber-bg); }
+  .kpi-val {
+    font-family: var(--mono); font-size: 26px; font-weight: 500;
+    letter-spacing: -0.02em; line-height: 1.05;
+    color: var(--kpi-color, var(--text));
+    font-variant-numeric: tabular-nums;
+  }
+  .kpi-sub {
+    font-family: var(--mono); font-size: 10.5px; color: var(--text-mute);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   }
 
-  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px; }
-  .grid-3 { display: grid; grid-template-columns: 2fr 1fr; gap: 16px; margin-bottom: 16px; }
-
+  /* ─── Panel ─── */
   .panel {
-    background: var(--bg2); border: 1px solid var(--border);
-    display: flex; flex-direction: column;
+    background: var(--surface-1); border: 1px solid var(--line);
+    border-radius: var(--radius-lg);
+    display: flex; flex-direction: column; overflow: hidden;
   }
-  .panel-header {
+  .panel-head {
     display: flex; align-items: center; justify-content: space-between;
-    padding: 12px 16px; border-bottom: 1px solid var(--border);
-    background: var(--bg3);
+    padding: 14px 18px 12px; border-bottom: 1px solid var(--line);
+    background: linear-gradient(180deg, oklch(20% 0.005 250 / 0.35), transparent);
   }
-  .panel-title { font-family: var(--mono); font-size: 11px; color: var(--text2); letter-spacing: 0.1em; text-transform: uppercase; }
-  .panel-tag { font-family: var(--mono); font-size: 10px; color: var(--text3); }
-  .panel-body { padding: 16px; flex: 1; }
+  .panel-head-left { display: flex; align-items: center; gap: 10px; }
+  .panel-title { font-size: 13px; font-weight: 500; letter-spacing: -0.005em; }
+  .panel-sub {
+    font-family: var(--mono); font-size: 10.5px; color: var(--text-dim);
+    padding-left: 10px; border-left: 1px solid var(--line);
+  }
+  .panel-head-right { display: flex; align-items: center; gap: 10px; font-family: var(--mono); font-size: 10.5px; color: var(--text-dim); }
+  .panel-body { padding: 16px 18px 18px; flex: 1; }
 
+  /* Grid layouts */
+  .row { display: grid; gap: 14px; margin-bottom: 14px; }
+  .row.two { grid-template-columns: 1fr 1fr; }
+  .row.lmp { grid-template-columns: minmax(0, 2.4fr) minmax(0, 1fr); }
+
+  /* legend */
+  .legend { display: flex; gap: 14px; flex-wrap: wrap; margin-bottom: 12px; }
+  .legend-item { display: inline-flex; align-items: center; gap: 6px; font-family: var(--mono); font-size: 11px; color: var(--text-mute); }
+  .legend-swatch { width: 10px; height: 10px; border-radius: 3px; }
+
+  /* Chart wrapper */
   .chart-wrap { position: relative; width: 100%; }
 
-  .data-table { width: 100%; border-collapse: collapse; }
-  .data-table th {
-    font-family: var(--mono); font-size: 10px; color: var(--text3);
-    letter-spacing: 0.08em; text-transform: uppercase;
-    padding: 6px 10px; text-align: left;
-    border-bottom: 1px solid var(--border);
-  }
-  .data-table td {
-    font-family: var(--mono); font-size: 12px; color: var(--text);
-    padding: 7px 10px; border-bottom: 1px solid var(--border);
-    vertical-align: middle;
-  }
-  .data-table tr:last-child td { border-bottom: none; }
-  .data-table tr:hover td { background: var(--bg3); }
-  .data-table td.num { text-align: right; }
-  .data-table td.zone { color: var(--accent); font-weight: 500; }
-
-  .sp-bar-wrap { display: flex; align-items: center; gap: 8px; }
-  .sp-bar { height: 4px; border-radius: 0; background: var(--red); flex-shrink: 0; }
-  .sp-val { font-family: var(--mono); font-size: 11px; color: var(--red); white-space: nowrap; }
-
-  .constraint-item {
-    padding: 10px 14px; border-bottom: 1px solid var(--border);
-    display: grid; grid-template-columns: 1fr auto; gap: 8px; align-items: start;
-  }
-  .constraint-item:last-child { border-bottom: none; }
-  .c-name { font-family: var(--mono); font-size: 11px; color: var(--text); line-height: 1.4; }
-  .c-meta { font-size: 11px; color: var(--text3); margin-top: 2px; }
-  .c-hours { font-family: var(--mono); font-size: 10px; color: var(--text3); text-align: right; white-space: nowrap; }
-  .c-shadow { font-family: var(--mono); font-size: 12px; color: var(--red); text-align: right; font-weight: 500; }
-  .c-territory {
-    display: inline-block; font-family: var(--mono); font-size: 9px;
-    padding: 1px 6px; letter-spacing: 0.05em;
-    border: 1px solid var(--border2); color: var(--text3); margin-top: 4px;
-  }
-
-  .analysis-body { padding: 16px 18px; overflow-y: auto; max-height: 360px; }
-  .analysis-ts { font-family: var(--mono); font-size: 10px; color: var(--text3); margin-bottom: 12px; letter-spacing: 0.06em; }
-  .analysis-text { font-size: 13px; color: var(--text2); line-height: 1.75; }
-  .analysis-text p { margin-bottom: 12px; }
-  .analysis-text p:last-child { margin-bottom: 0; }
-  .analysis-text strong { color: var(--text); font-weight: 500; }
-  .analysis-text .md-heading { color: var(--accent); font-family: var(--mono); font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; display: block; margin: 14px 0 6px; border-bottom: 1px solid var(--border); padding-bottom: 4px; }
-  .analysis-label {
-    display: inline-flex; align-items: center; gap: 6px;
-    font-family: var(--mono); font-size: 10px; color: var(--purple);
-    margin-bottom: 12px; letter-spacing: 0.06em;
-  }
-  .ai-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--purple); animation: pulse2 2.5s infinite; }
-  @keyframes pulse2 { 0%,100%{opacity:1} 50%{opacity:0.4} }
-
-  .btn-analysis {
-    font-family: var(--mono); font-size: 11px; color: var(--purple);
-    border: 1px solid rgba(155,127,232,0.4); background: transparent;
-    padding: 5px 14px; cursor: pointer; letter-spacing: 0.05em;
-    transition: all 0.2s;
-  }
-  .btn-analysis:hover:not(:disabled) { color: var(--text); border-color: var(--purple); background: rgba(155,127,232,0.1); }
-  .btn-analysis:disabled { opacity: 0.4; cursor: not-allowed; }
-
-  .alert-item {
-    display: flex; gap: 12px; padding: 10px 14px;
-    border-bottom: 1px solid var(--border); align-items: flex-start;
-  }
-  .alert-item:last-child { border-bottom: none; }
-  .alert-icon { width: 6px; height: 6px; border-radius: 50%; margin-top: 5px; flex-shrink: 0; }
-  .alert-icon.red { background: var(--red); }
-  .alert-icon.amber { background: var(--amber); }
-  .alert-icon.green { background: var(--green); }
-  .alert-icon.dim { background: var(--text3); }
-  .alert-body { flex: 1; }
-  .alert-msg { font-size: 12px; color: var(--text); line-height: 1.4; }
-  .alert-time { font-family: var(--mono); font-size: 10px; color: var(--text3); margin-top: 3px; }
-
+  /* Spread panel */
+  .spread-card { display: flex; flex-direction: column; height: 100%; }
+  .spread-hero { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; padding: 8px 0 6px; }
   .spread-val {
-    font-family: var(--mono); font-size: 28px; font-weight: 500;
-    color: var(--amber); text-align: center; padding: 8px 0 4px;
+    font-family: var(--mono); font-size: 36px; font-weight: 500;
+    letter-spacing: -0.02em; line-height: 1; color: var(--amber);
+    font-variant-numeric: tabular-nums;
   }
-  .spread-label { font-family: var(--mono); font-size: 10px; color: var(--text3); text-align: center; letter-spacing: 0.08em; margin-bottom: 12px; }
+  .spread-deltatag { font-family: var(--mono); font-size: 11px; padding: 3px 8px; border-radius: 5px; background: var(--amber-bg); color: var(--amber); }
+  .spread-desc { font-size: 12.5px; color: var(--text-mute); margin-top: 2px; line-height: 1.55; }
+  .spread-desc b { color: var(--text-soft); font-weight: 500; }
 
-  .hm-cell:hover { opacity: 0.7; cursor: default; }
+  /* Binding constraint list */
+  .c-list { display: flex; flex-direction: column; max-height: 380px; overflow-y: auto; }
+  .c-row {
+    display: grid; grid-template-columns: 1fr auto; align-items: start;
+    gap: 14px; padding: 11px 18px;
+    border-bottom: 1px solid var(--line);
+    transition: background .12s;
+  }
+  .c-row:hover { background: var(--surface-2); }
+  .c-row:last-child { border-bottom: none; }
+  .c-name { font-size: 12.5px; color: var(--text); line-height: 1.35; }
+  .c-meta { font-family: var(--mono); font-size: 10.5px; color: var(--text-mute); margin-top: 2px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .c-chip { display: inline-block; font-family: var(--mono); font-size: 9.5px; padding: 1px 6px; border-radius: 3px; background: var(--surface-3); color: var(--text-mute); }
+  .c-shadow { font-family: var(--mono); font-size: 13px; color: var(--red-2); font-variant-numeric: tabular-nums; text-align: right; }
+  .c-hours { font-family: var(--mono); font-size: 10.5px; color: var(--text-dim); margin-top: 2px; text-align: right; }
+  .c-bar { height: 3px; background: var(--surface-2); border-radius: 2px; overflow: hidden; margin-top: 6px; }
+  .c-bar > div { height: 100%; background: linear-gradient(90deg, var(--red), var(--red-2)); border-radius: 2px; }
 
-  /* ── Heatmap row-label tooltip ── */
+  /* Heatmap */
+  .heatmap-wrap { overflow-x: auto; padding-bottom: 4px; }
+  .heatmap {
+    display: grid; gap: 2px;
+    grid-template-columns: 240px repeat(24, minmax(30px, 1fr));
+    font-family: var(--mono); min-width: 1000px;
+  }
+  .hm-corner { font-size: 10px; color: var(--text-dim); padding: 4px 8px 4px 0; }
+  .hm-h { font-size: 10px; color: var(--text-dim); text-align: center; padding: 4px 0; }
+  .hm-label {
+    font-size: 11px; color: var(--text-soft); padding: 4px 10px 4px 0;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    align-self: center; cursor: default;
+  }
+  .hm-cell {
+    height: 24px; border-radius: 3px;
+    display: grid; place-items: center;
+    font-size: 9.5px; color: rgba(255,255,255,0.85);
+    font-variant-numeric: tabular-nums;
+    cursor: default;
+  }
+  .hm-cell:hover { outline: 1px solid rgba(255,255,255,0.3); }
+
+  /* Renewables */
+  .ren-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 14px; }
+  .ren-stat { background: var(--surface-2); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; }
+  .ren-stat-label { font-family: var(--mono); font-size: 9.5px; color: var(--text-dim); letter-spacing: 0.06em; text-transform: uppercase; margin-bottom: 4px; }
+  .ren-stat-val { font-family: var(--mono); font-size: 17px; font-weight: 500; font-variant-numeric: tabular-nums; letter-spacing: -0.01em; }
+  .ren-stat-val.solar { color: var(--amber); }
+  .ren-stat-val.wind  { color: var(--blue-2); }
+
+  /* AI panel */
+  .ai-tag {
+    display: inline-flex; align-items: center; gap: 6px;
+    font-family: var(--mono); font-size: 10.5px; color: var(--violet);
+    padding: 3px 9px; border-radius: 999px; background: var(--violet-bg);
+  }
+  .ai-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--violet); animation: blink 2.4s ease-in-out infinite; flex-shrink: 0; }
+  .btn-run {
+    font-family: var(--mono); font-size: 11px; letter-spacing: 0.02em;
+    color: var(--violet); padding: 5px 12px; border-radius: 6px;
+    background: var(--violet-bg); border: 1px solid transparent;
+    transition: all .15s;
+    display: inline-flex; align-items: center; gap: 6px;
+  }
+  .btn-run:hover { background: oklch(72% 0.16 295 / 0.22); }
+  .btn-run:disabled { opacity: .45; cursor: not-allowed; }
+  .btn-run svg { width: 11px; height: 11px; }
+
+  .ai-body {
+    padding: 18px 20px; max-height: 380px; overflow-y: auto;
+    font-size: 13px; line-height: 1.7; color: var(--text-soft);
+  }
+  .ai-body .ai-meta { font-family: var(--mono); font-size: 10.5px; color: var(--text-dim); margin-bottom: 14px; display: flex; gap: 12px; flex-wrap: wrap; }
+  .ai-body h3 {
+    font-family: var(--mono); font-size: 10.5px; color: var(--violet);
+    letter-spacing: 0.06em; text-transform: uppercase;
+    margin: 14px 0 6px; font-weight: 500;
+  }
+  .ai-body h3:first-child { margin-top: 0; }
+  .ai-body p { margin-bottom: 10px; }
+  .ai-body p:last-child { margin-bottom: 0; }
+  .ai-body strong { color: var(--text); font-weight: 500; }
+  .ai-body code { font-family: var(--mono); font-size: 12px; color: var(--blue-2); }
+
+  /* Event feed */
+  .event-list { display: flex; flex-direction: column; }
+  .event {
+    display: grid; grid-template-columns: auto 1fr auto; gap: 14px;
+    align-items: center; padding: 11px 20px;
+    border-bottom: 1px solid var(--line);
+  }
+  .event:last-child { border-bottom: none; }
+  .event-icon {
+    width: 28px; height: 28px; border-radius: 7px;
+    display: grid; place-items: center;
+    background: var(--surface-2); border: 1px solid var(--line);
+    flex-shrink: 0;
+  }
+  .event-icon svg { width: 13px; height: 13px; }
+  .event-icon.high  { color: var(--red);   background: var(--red-bg);   border-color: oklch(67% 0.20 25 / 0.3); }
+  .event-icon.mod   { color: var(--amber); background: var(--amber-bg); border-color: oklch(80% 0.14 75 / 0.25); }
+  .event-icon.info  { color: var(--blue);  background: var(--blue-bg);  border-color: oklch(72% 0.14 235 / 0.25); }
+  .event-icon.ok    { color: var(--green); background: var(--green-bg); border-color: oklch(74% 0.16 155 / 0.25); }
+  .event-msg { font-size: 13px; color: var(--text); line-height: 1.45; }
+  .event-msg b { color: var(--text); font-weight: 500; }
+  .event-meta { text-align: right; font-family: var(--mono); font-size: 10.5px; color: var(--text-dim); white-space: nowrap; }
+  .event-tag { display: inline-block; font-family: var(--mono); font-size: 9.5px; padding: 1.5px 6px; border-radius: 3px; margin-top: 2px; letter-spacing: 0.03em; }
+  .event-tag.high { background: var(--red-bg);   color: var(--red-2); }
+  .event-tag.mod  { background: var(--amber-bg); color: var(--amber); }
+  .event-tag.info { background: var(--blue-bg);  color: var(--blue-2); }
+  .event-tag.ok   { background: var(--green-bg); color: var(--green); }
+
+  /* Tooltip */
   #hm-tip {
     position: fixed; z-index: 500; pointer-events: none;
     display: none;
     font-family: var(--mono); font-size: 11px; color: var(--text);
-    background: var(--bg3); border: 1px solid var(--border2);
+    background: var(--surface-3); border: 1px solid var(--line-strong);
     padding: 5px 10px; white-space: nowrap;
+    border-radius: var(--radius-sm);
     box-shadow: 0 4px 16px rgba(0,0,0,0.5);
   }
   #hm-tip.visible { display: block; }
 
-  .empty-state {
-    font-family: var(--mono); font-size: 11px; color: var(--text3);
-    padding: 24px; text-align: center;
-  }
-  .error-state {
-    font-family: var(--mono); font-size: 11px; color: var(--red);
-    padding: 20px; text-align: center;
-  }
+  /* Empty / error */
+  .empty { font-family: var(--mono); font-size: 11px; color: var(--text-dim); padding: 26px; text-align: center; }
+  .error-msg { font-family: var(--mono); font-size: 11px; color: var(--red-2); padding: 20px; text-align: center; }
 
-  @keyframes spin { to { transform: rotate(360deg); } }
-  .spinner {
-    width: 12px; height: 12px;
-    border: 2px solid var(--border2);
-    border-top-color: var(--accent);
-    border-radius: 50%;
-    animation: spin 0.7s linear infinite;
-    display: inline-block; vertical-align: middle; margin-right: 4px;
-  }
-
+  /* Footer */
   footer {
-    margin-top: 32px; padding: 16px 24px;
-    border-top: 1px solid var(--border);
+    margin-top: 32px; padding: 18px 28px 28px;
     display: flex; justify-content: space-between; align-items: center;
+    border-top: 1px solid var(--line);
+    font-family: var(--mono); font-size: 11px; color: var(--text-dim);
+    flex-wrap: wrap; gap: 8px;
+    max-width: 1640px; margin-left: auto; margin-right: auto;
   }
-  .footer-txt { font-family: var(--mono); font-size: 10px; color: var(--text3); letter-spacing: 0.06em; }
+  .footer-links { display: flex; gap: 16px; }
+  .footer-links a:hover { color: var(--text-soft); }
 
-  ::-webkit-scrollbar { width: 4px; height: 4px; }
-  ::-webkit-scrollbar-track { background: var(--bg); }
-  ::-webkit-scrollbar-thumb { background: var(--bg4); }
+  /* Scrollbar */
+  ::-webkit-scrollbar { width: 8px; height: 8px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--surface-3); border-radius: 4px; }
+  ::-webkit-scrollbar-thumb:hover { background: oklch(30% 0.005 250); }
 
-  @keyframes fadeIn { from { opacity:0; transform: translateY(6px); } to { opacity:1; transform: translateY(0); } }
-  .panel { animation: fadeIn 0.4s ease both; }
-  .panel:nth-child(2) { animation-delay: 0.05s; }
-  .panel:nth-child(3) { animation-delay: 0.1s; }
+  /* Animations */
+  @keyframes fadeUp { from { opacity:0; transform: translateY(6px); } to { opacity:1; transform: translateY(0); } }
+  .panel, .kpi { animation: fadeUp .35s ease both; }
 
-  .tag-live { font-family: var(--mono); font-size: 9px; color: var(--green); border: 1px solid rgba(0,230,118,0.3); padding: 2px 7px; letter-spacing: 0.06em; }
-  .tag-da { font-family: var(--mono); font-size: 9px; color: var(--accent); border: 1px solid rgba(0,212,255,0.3); padding: 2px 7px; letter-spacing: 0.06em; }
-
-  /* ── Mode toggle ── */
-  .mode-toggle {
-    display: flex; border: 1px solid var(--border);
-  }
-  .mode-toggle .mtab {
-    font-family: var(--mono); font-size: 10px; letter-spacing: 0.07em;
-    padding: 4px 11px; border: none; background: transparent;
-    color: var(--text3); cursor: pointer; transition: all 0.15s;
-  }
-  .mode-toggle .mtab:first-child { border-right: 1px solid var(--border); }
-  .mode-toggle .mtab:hover { color: var(--text2); }
-  .mode-toggle .mtab.active { color: var(--accent); background: rgba(0,212,255,0.08); }
-
-  /* ── Date input ── */
-  input.date-input {
-    font-family: var(--mono); font-size: 11px; color: var(--text2);
-    border: 1px solid var(--border); background: var(--bg2);
-    padding: 4px 8px; cursor: pointer; transition: border-color 0.15s;
-    color-scheme: dark;
-  }
-  input.date-input:focus { outline: none; border-color: var(--accent); color: var(--accent); }
-
-  /* ── Mode-driven visibility ── */
-  body.mode-single  .compare-only { display: none !important; }
-  body.mode-multi   .compare-only { display: none !important; }
+  /* Mode visibility */
+  body.mode-single .row.lmp, body.mode-multi .row.lmp { grid-template-columns: 1fr; }
+  body.mode-single .compare-only, body.mode-multi .compare-only { display: none !important; }
   body:not(.mode-multi) .multi-only { display: none !important; }
-
   body.mode-single .kpi-row-static { grid-template-columns: repeat(3, 1fr); }
   body.mode-multi  .kpi-row-static { display: none !important; }
   body:not(.mode-multi) #kpi-row-multi { display: none !important; }
-  body.mode-multi  #kpi-row-multi { display: grid; margin-bottom: 20px; gap: 12px; }
+  body.mode-multi  #kpi-row-multi { display: grid; gap: 12px; margin-bottom: 22px; }
 
-  body.mode-single .lmp-grid { grid-template-columns: 1fr; }
-  body.mode-multi  .lmp-grid { grid-template-columns: 1fr; }
-
-  @media (max-width: 900px) {
-    .kpi-row { grid-template-columns: repeat(3, 1fr); }
-    .grid-2, .grid-3 { grid-template-columns: 1fr; }
+  /* Responsive */
+  @media (max-width: 1200px) {
+    .kpi-row, body.mode-single .kpi-row { grid-template-columns: repeat(3, 1fr); }
+    .row.two, .row.lmp { grid-template-columns: 1fr !important; }
   }
-  @media (max-width: 600px) {
-    .kpi-row { grid-template-columns: repeat(2, 1fr); }
+  @media (max-width: 680px) {
+    main { padding: 18px 16px 40px; }
+    header { padding: 0 16px; }
+    .kpi-row, body.mode-single .kpi-row { grid-template-columns: 1fr 1fr; }
+    .header-mid { display: none; }
+    .toolbar { flex-direction: column; align-items: flex-start; }
   }
 </style>
 </head>
 <body class="mode-compare">
 
 <header>
-  <div class="logo">
-    <div class="logo-mark">PJM</div>
-    <div>
-      <div class="logo-text">Market Monitor</div>
-      <div class="logo-sub">Day-Ahead LMP Surveillance</div>
+  <div class="brand">
+    <div class="brand-mark">PJM</div>
+    <div class="brand-text">
+      <span class="brand-title">Market Monitor</span>
+      <span class="brand-sub">Day-Ahead surveillance</span>
     </div>
   </div>
+
+  <nav class="header-mid">
+    <a class="nav-pill active">Dashboard</a>
+    <a class="nav-pill">Constraints</a>
+    <a class="nav-pill">Zones</a>
+    <a class="nav-pill">Generation</a>
+  </nav>
+
   <div class="header-right">
-    <div class="status-label">
-      <div id="status-dot" class="status-dot loading"></div>
-      <span id="status-text">Connecting…</span>
+    <div class="live-pill">
+      <span id="status-dot" class="dot loading"></span>
+      <span id="status-text">Connecting</span>
     </div>
-    <div id="clock">--:--:--</div>
-    <button id="refresh-btn" class="refresh-btn" onclick="refreshData()" disabled>↺ REFRESH</button>
+    <span id="clock">--:--:--</span>
+    <button id="refresh-btn" class="icon-btn" title="Refresh data" disabled>
+      <svg viewBox="0 0 16 16" fill="none"><path d="M2 8a6 6 0 0 1 10.5-3.97V3M14 8a6 6 0 0 1-10.5 3.97V13" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/><path d="M12.5 1.5v2.5h-2.5M3.5 14.5V12h2.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </button>
+    <button class="icon-btn" title="Export">
+      <svg viewBox="0 0 16 16" fill="none"><path d="M8 2v8m0 0L5 7m3 3l3-3M2.5 11.5V13a1 1 0 0 0 1 1h9a1 1 0 0 0 1-1v-1.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </button>
   </div>
 </header>
 
 <main>
 
-  <div class="date-bar">
-    <div>
-      <div class="date-label">Market date</div>
-      <div class="date-val" id="market-date">-- · Day-Ahead Settlement</div>
-    </div>
-    <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;">
-      <div class="selector-row">
-        <div class="mode-toggle">
-          <button class="mtab active" id="mtab-compare" onclick="setMode('compare')">COMPARE</button>
-          <button class="mtab"        id="mtab-single"  onclick="setMode('single')">SINGLE</button>
-          <button class="mtab"        id="mtab-multi"   onclick="setMode('multi')">MULTI</button>
-        </div>
-        <span class="selector-lbl">Z1</span>
-        <select id="zone1-select" class="zone-select" onchange="onZoneChange()"></select>
-        <span class="selector-lbl compare-only">vs</span>
-        <select id="zone2-select" class="zone-select compare-only" onchange="onZoneChange()"></select>
-        <span class="selector-lbl multi-only">Z2</span>
-        <select id="mz2-select" class="zone-select multi-only" onchange="onMultiZoneChange()"></select>
-        <span class="selector-lbl multi-only">Z3</span>
-        <select id="mz3-select" class="zone-select multi-only" onchange="onMultiZoneChange()"></select>
-        <span class="selector-lbl multi-only">Z4</span>
-        <select id="mz4-select" class="zone-select multi-only" onchange="onMultiZoneChange()"></select>
-        <span class="selector-lbl multi-only">Z5</span>
-        <select id="mz5-select" class="zone-select multi-only" onchange="onMultiZoneChange()"></select>
-        <span class="selector-lbl">AREA</span>
-        <select id="area-select" class="zone-select" onchange="onAreaChange()"></select>
+  <!-- Toolbar -->
+  <div class="toolbar">
+    <div class="toolbar-left">
+      <div class="date-block">
+        <h1 id="market-date">--</h1>
+        <span class="day" id="market-day">Day-Ahead settlement</span>
       </div>
-      <span class="tag-da">DA</span>
-      <span style="font-family:var(--mono);font-size:11px;color:var(--text3);">Next: <span id="next-update" style="color:var(--text2);">--</span></span>
-      <div class="date-nav">
-        <button onclick="prevDay()">◀</button>
-        <input type="date" id="date-input" class="date-input" onchange="onDateInput()">
-        <button id="btn-today" onclick="goToday()">today</button>
-        <button onclick="nextDay()">▶</button>
+      <span class="tag-da">Day-Ahead</span>
+    </div>
+
+    <div class="toolbar-right">
+      <div class="seg" role="tablist" id="mode-seg">
+        <button id="mtab-single"  data-mode="single">Single</button>
+        <button id="mtab-compare" data-mode="compare" class="active">Compare</button>
+        <button id="mtab-multi"   data-mode="multi">Multi</button>
+      </div>
+
+      <span class="selector-label">Zone</span>
+      <select id="zone1-select" class="zone-select"></select>
+      <span class="vs-label compare-only">vs</span>
+      <select id="zone2-select" class="zone-select compare-only"></select>
+
+      <span class="selector-label multi-only">+</span>
+      <select id="mz2-select" class="zone-select multi-only"></select>
+      <select id="mz3-select" class="zone-select multi-only"></select>
+      <select id="mz4-select" class="zone-select multi-only"></select>
+      <select id="mz5-select" class="zone-select multi-only"></select>
+
+      <span class="selector-label">Area</span>
+      <select id="area-select" class="zone-select"></select>
+
+      <div class="stepper">
+        <button id="prev-day" title="Previous day">
+          <svg viewBox="0 0 16 16" fill="none"><path d="M10 4l-4 4 4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
+        <input type="date" id="date-input">
+        <button id="today-btn" class="today-btn">Today</button>
+        <button id="next-day" title="Next day">
+          <svg viewBox="0 0 16 16" fill="none"><path d="M6 4l4 4-4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
       </div>
     </div>
   </div>
 
-  <!-- KPI ROW (single / compare) -->
+  <!-- KPI strip (single + compare) -->
   <div class="kpi-row kpi-row-static">
-    <div class="kpi" style="--accent-color:#00d4ff;">
-      <div class="kpi-label" id="kpi-z1-label">Zone 1 Avg LMP</div>
-      <div class="kpi-val" id="kpi-z1-avg" style="color:var(--accent);">--</div>
+    <div class="kpi" style="--kpi-color:var(--blue);">
+      <div class="kpi-head">
+        <div class="kpi-label" id="kpi-z1-label">Zone 1 Avg LMP</div>
+        <span class="kpi-zone-chip" id="kpi-z1-badge">DOM</span>
+      </div>
+      <div class="kpi-val" id="kpi-z1-avg">--</div>
       <div class="kpi-sub" id="kpi-z1-peak">--</div>
-      <div class="kpi-badge" id="kpi-z1-badge">--</div>
     </div>
-    <div class="kpi compare-only" style="--accent-color:#00e676;">
-      <div class="kpi-label" id="kpi-z2-label">Zone 2 Avg LMP</div>
-      <div class="kpi-val" id="kpi-z2-avg" style="color:var(--green);">--</div>
+    <div class="kpi compare-only" style="--kpi-color:var(--green);">
+      <div class="kpi-head">
+        <div class="kpi-label" id="kpi-z2-label">Zone 2 Avg LMP</div>
+        <span class="kpi-zone-chip" id="kpi-z2-badge">AEP</span>
+      </div>
+      <div class="kpi-val" id="kpi-z2-avg">--</div>
       <div class="kpi-sub" id="kpi-z2-peak">--</div>
-      <div class="kpi-badge" id="kpi-z2-badge" style="background:rgba(0,230,118,0.1);color:var(--green);">--</div>
     </div>
-    <div class="kpi compare-only" style="--accent-color:#ffaa00;">
-      <div class="kpi-label" id="kpi-spread-label">Z1–Z2 Spread</div>
-      <div class="kpi-val" id="kpi-spread" style="color:var(--amber);">--</div>
+    <div class="kpi compare-only" style="--kpi-color:var(--amber);">
+      <div class="kpi-head">
+        <div class="kpi-label" id="kpi-spread-label">Basis Spread</div>
+        <span class="kpi-delta" id="kpi-spread-badge">--</span>
+      </div>
+      <div class="kpi-val" id="kpi-spread">--</div>
       <div class="kpi-sub" id="kpi-spread-sub">--</div>
-      <div class="kpi-badge" id="kpi-spread-badge" style="background:rgba(255,170,0,0.1);color:var(--amber);">--</div>
     </div>
-    <div class="kpi" style="--accent-color:#ff4444;">
-      <div class="kpi-label">Binding Constraints</div>
-      <div class="kpi-val" id="kpi-binding-count" style="color:var(--red);">--</div>
+    <div class="kpi" style="--kpi-color:var(--red-2);">
+      <div class="kpi-head">
+        <div class="kpi-label">Binding Constraints</div>
+        <span class="kpi-delta" id="kpi-binding-badge">--</span>
+      </div>
+      <div class="kpi-val" id="kpi-binding-count">--</div>
       <div class="kpi-sub" id="kpi-binding-sub">--</div>
-      <div class="kpi-badge" id="kpi-binding-badge" style="background:rgba(255,68,68,0.1);color:var(--red);">--</div>
     </div>
-    <div class="kpi" style="--accent-color:#9b7fe8;">
-      <div class="kpi-label">Max Shadow Price</div>
-      <div class="kpi-val" id="kpi-shadow" style="color:var(--purple);">--</div>
+    <div class="kpi" style="--kpi-color:var(--violet);">
+      <div class="kpi-head">
+        <div class="kpi-label">Max Shadow Price</div>
+        <span class="kpi-delta" id="kpi-shadow-badge">--</span>
+      </div>
+      <div class="kpi-val" id="kpi-shadow">--</div>
       <div class="kpi-sub" id="kpi-shadow-sub">--</div>
-      <div class="kpi-badge" id="kpi-shadow-badge" style="background:rgba(155,127,232,0.1);color:var(--purple);">--</div>
     </div>
   </div>
 
-  <!-- KPI ROW (multi) — populated by JS -->
+  <!-- KPI strip (multi) — populated by JS -->
   <div id="kpi-row-multi"></div>
 
-  <!-- LMP CHART + SPREAD -->
-  <div class="grid-3 lmp-grid" style="margin-bottom:16px;">
-    <div class="panel">
-      <div class="panel-header">
-        <span class="panel-title" id="lmp-chart-title">Hourly DA LMP — Zone Comparison</span>
-        <span class="panel-tag">$/MWh · HE00–HE23</span>
-      </div>
-      <div class="panel-body">
-        <div id="lmp-legend" style="display:flex;gap:16px;margin-bottom:12px;font-family:var(--mono);font-size:10px;color:var(--text3);flex-wrap:wrap;"></div>
-        <div class="chart-wrap" style="height:240px;"><canvas id="lmpChart"></canvas></div>
-      </div>
-    </div>
-
-    <div class="panel compare-only">
-      <div class="panel-header">
-        <span class="panel-title" id="spread-chart-title">Z1–Z2 Basis Spread</span>
-        <span class="panel-tag">$/MWh</span>
-      </div>
-      <div class="panel-body" style="padding:12px;">
-        <div class="spread-val" id="spread-display">--</div>
-        <div class="spread-label" id="spread-sublabel">24H AVERAGE SPREAD</div>
-        <div class="chart-wrap" style="height:170px;"><canvas id="spreadChart"></canvas></div>
-      </div>
-    </div>
-  </div>
-
-  <!-- CONGESTION + BINDING CONSTRAINTS -->
-  <div class="grid-2" style="margin-bottom:16px;">
-    <div class="panel">
-      <div class="panel-header">
-        <span class="panel-title">Congestion Component</span>
-        <span class="panel-tag">$/MWh by hour</span>
-      </div>
-      <div class="panel-body">
-        <div style="display:flex;gap:16px;margin-bottom:12px;font-family:var(--mono);font-size:10px;color:var(--text3);">
-          <span style="display:flex;align-items:center;gap:5px;"><span style="display:inline-block;width:10px;height:10px;background:rgba(0,212,255,0.6);"></span><span id="cong-lbl-z1">Zone 1</span></span>
-          <span class="compare-only" style="display:flex;align-items:center;gap:5px;"><span style="display:inline-block;width:10px;height:10px;background:rgba(0,230,118,0.6);"></span><span id="cong-lbl-z2">Zone 2</span></span>
+  <!-- LMP + Spread -->
+  <div class="row lmp">
+    <section class="panel">
+      <div class="panel-head">
+        <div class="panel-head-left">
+          <span class="panel-title" id="lmp-chart-title">Hourly DA LMP</span>
+          <span class="panel-sub">$/MWh · HE00–HE23</span>
         </div>
-        <div class="chart-wrap" style="height:210px;"><canvas id="congChart"></canvas></div>
-      </div>
-    </div>
-
-    <div class="panel">
-      <div class="panel-header">
-        <span class="panel-title">Top Binding Constraints</span>
-        <span class="panel-tag">by peak shadow price</span>
-      </div>
-      <div id="binding-list" style="overflow-y:auto;max-height:280px;">
-        <div class="empty-state">Awaiting data…</div>
-      </div>
-    </div>
-  </div>
-
-  <!-- CONSTRAINT HEATMAP -->
-  <div class="panel" style="margin-bottom:16px;">
-    <div class="panel-header">
-      <span class="panel-title">Constraint Binding Heatmap — Shadow Price by Hour</span>
-      <span class="panel-tag">darker = higher magnitude</span>
-    </div>
-    <div class="panel-body" style="overflow-x:auto;">
-      <div id="heatmap"><div class="empty-state">Awaiting data…</div></div>
-    </div>
-  </div>
-
-  <!-- RENEWABLES + AI ANALYSIS -->
-  <div class="grid-2" style="margin-bottom:16px;">
-    <div class="panel">
-      <div class="panel-header">
-        <span class="panel-title">Renewable Generation — <span id="area-label">RTO</span></span>
-        <span class="panel-tag">MW actual</span>
+        <div class="panel-head-right">
+          <div id="lmp-legend" class="legend" style="margin:0;"></div>
+        </div>
       </div>
       <div class="panel-body">
-        <div style="display:flex;gap:16px;margin-bottom:12px;font-family:var(--mono);font-size:10px;color:var(--text3);">
-          <span style="display:flex;align-items:center;gap:5px;"><span style="display:inline-block;width:10px;height:10px;background:rgba(255,170,0,0.7);"></span>Solar</span>
-          <span style="display:flex;align-items:center;gap:5px;"><span style="display:inline-block;width:10px;height:10px;background:rgba(0,212,255,0.5);"></span>Wind</span>
+        <div class="chart-wrap" style="height:260px;"><canvas id="lmpChart"></canvas></div>
+      </div>
+    </section>
+
+    <section class="panel compare-only spread-card">
+      <div class="panel-head">
+        <div class="panel-head-left">
+          <span class="panel-title" id="spread-chart-title">Basis Spread</span>
+          <span class="panel-sub">$/MWh</span>
         </div>
-        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:14px;">
-          <div style="background:var(--bg3);padding:10px 12px;">
-            <div style="font-family:var(--mono);font-size:9px;color:var(--text3);letter-spacing:0.08em;margin-bottom:4px;">SOLAR PEAK</div>
-            <div id="solar-peak" style="font-family:var(--mono);font-size:16px;color:var(--amber);">-- MW</div>
+        <div class="panel-head-right">
+          <span id="spread-tag" class="kpi-delta">--</span>
+        </div>
+      </div>
+      <div class="panel-body">
+        <div class="spread-hero">
+          <span class="spread-val" id="spread-display">--</span>
+          <span class="spread-deltatag" id="spread-deltatag">24h avg</span>
+        </div>
+        <p class="spread-desc" id="spread-desc">Load market data to see basis spread analysis.</p>
+        <div class="chart-wrap" style="height:160px;margin-top:14px;"><canvas id="spreadChart"></canvas></div>
+      </div>
+    </section>
+  </div>
+
+  <!-- Congestion + Binding -->
+  <div class="row two">
+    <section class="panel">
+      <div class="panel-head">
+        <div class="panel-head-left">
+          <span class="panel-title">Congestion Component</span>
+          <span class="panel-sub">$/MWh by hour</span>
+        </div>
+        <div class="panel-head-right">
+          <div class="legend" style="margin:0;">
+            <span class="legend-item"><span class="legend-swatch" style="background:var(--blue);"></span><span id="cong-lbl-z1">Z1</span></span>
+            <span class="legend-item compare-only"><span class="legend-swatch" style="background:var(--green);"></span><span id="cong-lbl-z2">Z2</span></span>
           </div>
-          <div style="background:var(--bg3);padding:10px 12px;">
-            <div style="font-family:var(--mono);font-size:9px;color:var(--text3);letter-spacing:0.08em;margin-bottom:4px;">WIND PEAK</div>
-            <div id="wind-peak" style="font-family:var(--mono);font-size:16px;color:var(--accent);">-- MW</div>
+        </div>
+      </div>
+      <div class="panel-body">
+        <div class="chart-wrap" style="height:220px;"><canvas id="congChart"></canvas></div>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head">
+        <div class="panel-head-left">
+          <span class="panel-title">Top Binding Constraints</span>
+          <span class="panel-sub">peak shadow price</span>
+        </div>
+        <div class="panel-head-right" id="binding-count-tag">--</div>
+      </div>
+      <div class="c-list" id="binding-list">
+        <div class="empty">Awaiting data…</div>
+      </div>
+    </section>
+  </div>
+
+  <!-- Heatmap -->
+  <section class="panel" style="margin-bottom:14px;">
+    <div class="panel-head">
+      <div class="panel-head-left">
+        <span class="panel-title">Constraint Shadow-Price Heatmap</span>
+        <span class="panel-sub">intensity = $/MWh magnitude · HE00–HE23</span>
+      </div>
+      <div class="panel-head-right">
+        <span style="display:inline-flex;align-items:center;gap:6px;font-family:var(--mono);font-size:10.5px;color:var(--text-dim);">low
+          <span style="display:inline-flex;gap:2px;">
+            <span style="width:10px;height:10px;border-radius:2px;background:oklch(67% 0.20 25 / .15)"></span>
+            <span style="width:10px;height:10px;border-radius:2px;background:oklch(67% 0.20 25 / .35)"></span>
+            <span style="width:10px;height:10px;border-radius:2px;background:oklch(67% 0.20 25 / .55)"></span>
+            <span style="width:10px;height:10px;border-radius:2px;background:oklch(67% 0.20 25 / .75)"></span>
+            <span style="width:10px;height:10px;border-radius:2px;background:oklch(67% 0.20 25 / .95)"></span>
+          </span>
+          high
+        </span>
+      </div>
+    </div>
+    <div class="panel-body heatmap-wrap" id="heatmap-wrap">
+      <div class="empty">Awaiting data…</div>
+    </div>
+  </section>
+
+  <!-- Renewables + AI -->
+  <div class="row two">
+    <section class="panel">
+      <div class="panel-head">
+        <div class="panel-head-left">
+          <span class="panel-title">Renewable Generation — <span id="area-label">RTO</span></span>
+          <span class="panel-sub">MW · actual</span>
+        </div>
+        <div class="panel-head-right">
+          <div class="legend" style="margin:0;">
+            <span class="legend-item"><span class="legend-swatch" style="background:var(--amber);"></span>Solar</span>
+            <span class="legend-item"><span class="legend-swatch" style="background:var(--blue-2);"></span>Wind</span>
           </div>
-          <div style="background:var(--bg3);padding:10px 12px;">
-            <div style="font-family:var(--mono);font-size:9px;color:var(--text3);letter-spacing:0.08em;margin-bottom:4px;">TOTAL MWh</div>
-            <div id="total-mwh" style="font-family:var(--mono);font-size:16px;color:var(--text);">--</div>
+        </div>
+      </div>
+      <div class="panel-body">
+        <div class="ren-stats">
+          <div class="ren-stat">
+            <div class="ren-stat-label">Solar peak</div>
+            <div class="ren-stat-val solar" id="solar-peak">-- MW</div>
+          </div>
+          <div class="ren-stat">
+            <div class="ren-stat-label">Wind peak</div>
+            <div class="ren-stat-val wind" id="wind-peak">-- MW</div>
+          </div>
+          <div class="ren-stat">
+            <div class="ren-stat-label">Total MWh</div>
+            <div class="ren-stat-val" id="total-mwh">--</div>
           </div>
         </div>
         <div class="chart-wrap" style="height:170px;"><canvas id="genChart"></canvas></div>
       </div>
-    </div>
+    </section>
 
-    <div class="panel">
-      <div class="panel-header">
-        <span class="panel-title">AI Market Analysis</span>
-        <div style="display:flex;align-items:center;gap:8px;">
-          <span class="panel-tag" id="analysis-model-tag">OpenRouter</span>
-          <button id="btn-analysis" class="btn-analysis" onclick="triggerAnalysis()">▶ RUN</button>
+    <section class="panel">
+      <div class="panel-head">
+        <div class="panel-head-left">
+          <span class="panel-title">Market Analysis</span>
+          <span class="ai-tag"><span class="ai-dot"></span>AI</span>
+        </div>
+        <div class="panel-head-right">
+          <span class="panel-sub" style="border:none;padding:0;" id="analysis-model-tag">OpenRouter</span>
+          <button id="btn-analysis" class="btn-run">
+            <svg viewBox="0 0 12 12" fill="none"><path d="M3 2.5l6 3.5-6 3.5v-7z" fill="currentColor"/></svg>
+            Run
+          </button>
         </div>
       </div>
-      <div id="analysis-content">
-        <div class="empty-state" style="line-height:1.9;">
-          Load market data, then click<br>
-          <strong style="color:var(--purple);">▶ RUN</strong> to generate AI analysis.
-        </div>
+      <div class="ai-body" id="analysis-content">
+        <p style="color:var(--text-mute);">Click <b style="color:var(--violet);">Run</b> to generate a narrative summary of today's market conditions, basis movement, and binding constraint activity.</p>
       </div>
-    </div>
+    </section>
   </div>
 
-  <!-- ALERT FEED -->
-  <div class="panel" style="margin-bottom:16px;">
-    <div class="panel-header">
-      <span class="panel-title">Event Feed</span>
-      <span class="panel-tag">auto-generated · today</span>
-    </div>
-    <div id="alert-feed">
-      <div class="alert-item">
-        <div class="alert-icon dim"></div>
-        <div class="alert-body">
-          <div class="alert-msg" style="color:var(--text3);">Loading market data…</div>
-          <div class="alert-time">--</div>
-        </div>
+  <!-- Event feed -->
+  <section class="panel">
+    <div class="panel-head">
+      <div class="panel-head-left">
+        <span class="panel-title">Event Feed</span>
+        <span class="panel-sub">auto-generated · today</span>
+      </div>
+      <div class="panel-head-right">
+        <span style="display:inline-flex;align-items:center;gap:6px;">
+          <span class="dot live"></span>real-time
+        </span>
       </div>
     </div>
-  </div>
+    <div class="event-list" id="event-feed">
+      <div class="empty">Loading market events…</div>
+    </div>
+  </section>
 
 </main>
 
 <footer>
-  <div class="footer-txt">PJM MARKET MONITOR · DA SURVEILLANCE · DATA: PJM DATA MINER 2</div>
-  <div class="footer-txt" id="footer-ts">Last refresh: --</div>
+  <div>PJM Market Monitor · DA Surveillance · Source: PJM Data Miner 2</div>
+  <div class="footer-links">
+    <span id="footer-ts">Last sync: --</span>
+  </div>
 </footer>
 
 <div id="hm-tip"></div>
@@ -557,38 +764,25 @@ const S = {
   zone1: 'DOM',
   zone2: 'AEP',
   area: 'RTO',
-  mode: 'compare',          // 'compare' | 'single' | 'multi'
+  mode: 'compare',
   multiZones: ['DOM','AEP','PSEG','',''],
-  lmp1: null,
-  lmp2: null,
   lmpMulti: [null,null,null,null,null],
-  binding: null,
-  transmission: null,
-  renewables: null,
+  lmp1: null, lmp2: null,
+  binding: null, transmission: null, renewables: null,
   loading: false
 };
 
-/* ─── Zone palette (for multi mode) ─── */
-const ZONE_COLORS = ['#00d4ff','#00e676','#ffaa00','#9b7fe8','#ff6b6b'];
+const ZONE_COLORS = ['#60a5fa','#34d399','#fbbf24','#a78bfa','#fb7185'];
 const ZONE_FILLS  = [
-  'rgba(0,212,255,0.06)','rgba(0,230,118,0.05)','rgba(255,170,0,0.05)',
-  'rgba(155,127,232,0.05)','rgba(255,107,107,0.05)'
+  'rgba(96,165,250,0.06)','rgba(52,211,153,0.05)','rgba(251,191,36,0.05)',
+  'rgba(167,139,250,0.05)','rgba(251,113,133,0.05)'
 ];
 
 /* ─── Utils ─── */
 function dateStr(d) { return d.toISOString().slice(0, 10); }
-
-function dateAdd(s, n) {
-  const d = new Date(s + 'T12:00:00');
-  d.setDate(d.getDate() + n);
-  return dateStr(d);
-}
-
+function dateAdd(s, n) { const d = new Date(s + 'T12:00:00'); d.setDate(d.getDate() + n); return dateStr(d); }
 function el(id) { return document.getElementById(id); }
-
-function esc(s) {
-  return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-}
+function esc(s) { return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 
 function fmt$(n, forceSign = false) {
   if (n == null || !Number.isFinite(n)) return '--';
@@ -596,28 +790,20 @@ function fmt$(n, forceSign = false) {
   if (forceSign) return (n >= 0 ? '+$' : '-$') + abs;
   return (n < 0 ? '-$' : '$') + abs;
 }
-
-function fmtMW(n) {
-  if (n == null || !Number.isFinite(n)) return '-- MW';
-  return Math.round(n).toLocaleString() + ' MW';
-}
-
-function hourOf(dt) {
-  const s = String(dt ?? '');
-  const h = parseInt(s.length >= 13 ? s.slice(11, 13) : '0', 10);
-  return Number.isFinite(h) ? h : 0;
-}
-
-function hourLabel(dt) {
-  if (!dt) return '--';
-  return 'HE' + String(hourOf(dt)).padStart(2, '0');
-}
-
+function fmtMW(n) { if (n == null || !Number.isFinite(n)) return '-- MW'; return Math.round(n).toLocaleString() + ' MW'; }
+function hourOf(dt) { const s = String(dt ?? ''); const h = parseInt(s.length >= 13 ? s.slice(11,13) : '0', 10); return Number.isFinite(h) ? h : 0; }
+function hourLabel(dt) { if (!dt) return '--'; return 'HE' + String(hourOf(dt)).padStart(2,'0'); }
 function round2(n) { return Math.round(n * 100) / 100; }
+function trunc(s, n) { const str = String(s ?? ''); return str.length > n ? str.slice(0, n-1) + '…' : str; }
 
-function trunc(s, n) {
-  const str = String(s ?? '');
-  return str.length > n ? str.slice(0, n - 1) + '…' : str;
+function formatDate(dateStr) {
+  const [y, m, d] = dateStr.split('-').map(Number);
+  return new Date(y, m-1, d).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+}
+function formatDay(dateStr) {
+  const [y, m, d] = dateStr.split('-').map(Number);
+  const days = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+  return days[new Date(y, m-1, d).getDay()] + ' · DA settlement';
 }
 
 const HOURS = Array.from({ length: 24 }, (_, i) => 'H' + i);
@@ -638,29 +824,23 @@ async function loadStatus() {
   ['zone1-select','zone2-select'].forEach((id, i) => {
     const sel = el(id);
     const cur = i === 0 ? S.zone1 : S.zone2;
-    sel.innerHTML = zones.map(z =>
-      `<option value="${esc(z)}"${z === cur ? ' selected' : ''}>${esc(z)}</option>`
-    ).join('');
+    sel.innerHTML = zones.map(z => `<option value="${esc(z)}"${z === cur ? ' selected' : ''}>${esc(z)}</option>`).join('');
   });
   ['mz2-select','mz3-select','mz4-select','mz5-select'].forEach((id, i) => {
     const sel = el(id);
     const cur = S.multiZones[i + 1];
-    sel.innerHTML = noneOpt + zones.map(z =>
-      `<option value="${esc(z)}"${z === cur ? ' selected' : ''}>${esc(z)}</option>`
-    ).join('');
+    sel.innerHTML = noneOpt + zones.map(z => `<option value="${esc(z)}"${z === cur ? ' selected' : ''}>${esc(z)}</option>`).join('');
   });
 
   const areaSel = el('area-select');
-  areaSel.innerHTML = areas.map(a =>
-    `<option value="${esc(a)}"${a === S.area ? ' selected' : ''}>${esc(a)}</option>`
-  ).join('');
+  areaSel.innerHTML = areas.map(a => `<option value="${esc(a)}"${a === S.area ? ' selected' : ''}>${esc(a)}</option>`).join('');
 
   if (d.openRouterConfigured) {
     el('analysis-model-tag').textContent = trunc(d.openRouterModel ?? 'OpenRouter', 28);
   } else {
     el('analysis-model-tag').textContent = 'No API key';
     el('btn-analysis').disabled = true;
-    el('btn-analysis').title = 'OPENROUTER_API_KEY not configured on server';
+    el('btn-analysis').title = 'OPENROUTER_API_KEY not configured';
   }
 }
 
@@ -669,7 +849,8 @@ async function loadAll() {
   S.loading = true;
   setStatus('loading', 'Loading…');
   el('refresh-btn').disabled = true;
-  el('market-date').textContent = `${S.date} · Day-Ahead Settlement`;
+  el('market-date').textContent = formatDate(S.date);
+  el('market-day').textContent  = formatDay(S.date);
   el('date-input').value = S.date;
 
   try {
@@ -678,15 +859,13 @@ async function loadAll() {
     if (S.mode === 'multi') {
       const [lmpResults, rb, rt, rn] = await Promise.allSettled([
         Promise.allSettled(S.multiZones.map(z =>
-          z ? apiFetch(`/api/pjm/da-lmp/zone?zone=${encodeURIComponent(z)}&date=${S.date}`)
-            : Promise.resolve(null)
+          z ? apiFetch(`/api/pjm/da-lmp/zone?zone=${encodeURIComponent(z)}&date=${S.date}`) : Promise.resolve(null)
         )),
         apiFetch(`/api/pjm/constraints/binding?date=${S.date}`),
         apiFetch(`/api/pjm/constraints/transmission?date=${S.date}`),
         apiFetch(`/api/pjm/renewables?date=${S.date}&area=${encodeURIComponent(S.area)}`)
       ]);
-      S.lmpMulti    = (lmpResults.status === 'fulfilled' ? lmpResults.value : [])
-                        .map(r => r?.status === 'fulfilled' ? r.value : null);
+      S.lmpMulti    = (lmpResults.status === 'fulfilled' ? lmpResults.value : []).map(r => r?.status === 'fulfilled' ? r.value : null);
       S.lmp1        = S.lmpMulti[0];
       S.binding     = rb.status === 'fulfilled' ? rb.value : null;
       S.transmission= rt.status === 'fulfilled' ? rt.value : null;
@@ -718,13 +897,12 @@ async function loadAll() {
   } finally {
     S.loading = false;
     el('refresh-btn').disabled = false;
-    el('footer-ts').textContent = 'Last refresh: ' + new Date().toLocaleTimeString();
+    el('footer-ts').textContent = 'Last sync: ' + new Date().toLocaleTimeString();
   }
 }
 
 function setStatus(state, text) {
-  const dot = el('status-dot');
-  dot.className = 'status-dot ' + state;
+  el('status-dot').className = 'dot ' + state;
   el('status-text').textContent = text;
 }
 
@@ -741,24 +919,24 @@ function render() {
     el('lmp-chart-title').textContent = cmp ? `Hourly DA LMP — ${z1} vs ${z2}` : `Hourly DA LMP — ${z1}`;
   }
 
-  el('spread-chart-title').textContent= `${z1}–${z2} Basis Spread`;
-  el('kpi-z1-label').textContent      = multi ? `${S.multiZones[0] || 'Z1'} Avg LMP` : `${z1} Avg LMP`;
-  el('kpi-z2-label').textContent      = `${z2} Avg LMP`;
-  el('kpi-spread-label').textContent  = `${z1}–${z2} Spread`;
-  el('cong-lbl-z1').textContent       = multi ? (S.multiZones[0] || 'Z1') : z1;
-  el('cong-lbl-z2').textContent       = z2;
-  el('area-label').textContent        = S.area;
+  el('spread-chart-title').textContent = `${z1}–${z2} Basis Spread`;
+  el('kpi-z1-label').textContent       = multi ? `${S.multiZones[0] || 'Z1'} Avg LMP` : `${z1} Avg LMP`;
+  el('kpi-z2-label').textContent       = `${z2} Avg LMP`;
+  el('kpi-spread-label').textContent   = `${z1}–${z2} Spread`;
+  el('cong-lbl-z1').textContent        = multi ? (S.multiZones[0] || 'Z1') : z1;
+  el('cong-lbl-z2').textContent        = z2;
+  el('area-label').textContent         = S.area;
 
   renderLmpLegend();
-
   renderKpis();
   updateCharts();
   renderBinding();
   renderHeatmap();
   renderRenewableStats();
-  renderAlerts();
+  renderEvents();
 }
 
+/* ─── KPIs ─── */
 function renderKpis() {
   if (S.mode === 'multi') { renderMultiKpis(); return; }
 
@@ -766,21 +944,32 @@ function renderKpis() {
   const s2 = S.lmp2?.summary;
 
   el('kpi-z1-avg').textContent  = s1 ? fmt$(s1.average_lmp) : '--';
-  el('kpi-z1-badge').textContent= S.zone1;
+  el('kpi-z1-badge').textContent = S.zone1;
   el('kpi-z1-peak').textContent = s1 ? `Peak ${fmt$(s1.max_lmp)} @ ${hourLabel(s1.max_hour)}` : '--';
 
   el('kpi-z2-avg').textContent  = s2 ? fmt$(s2.average_lmp) : '--';
-  el('kpi-z2-badge').textContent= S.zone2;
+  el('kpi-z2-badge').textContent = S.zone2;
   el('kpi-z2-peak').textContent = s2 ? `Peak ${fmt$(s2.max_lmp)} @ ${hourLabel(s2.max_hour)}` : '--';
 
   if (s1 && s2) {
     const spread = round2((s1.average_lmp ?? 0) - (s2.average_lmp ?? 0));
-    el('kpi-spread').textContent    = fmt$(spread);
-    el('spread-display').textContent= fmt$(spread);
-    el('kpi-spread-sub').textContent= spread > 0 ? `${S.zone1} premium` : `${S.zone2} premium`;
-    el('kpi-spread-badge').textContent = Math.abs(spread) > 8 ? '↑ HIGH' : Math.abs(spread) > 4 ? '↑ MOD' : '↔ LOW';
+    const absSpread = Math.abs(spread);
+    const spreadLabel = absSpread > 8 ? 'HIGH' : absSpread > 4 ? 'MOD' : 'LOW';
+    const spreadClass = absSpread > 8 ? 'down warn' : absSpread > 4 ? 'warn' : '';
+
+    el('kpi-spread').textContent     = fmt$(spread);
+    el('kpi-spread-sub').textContent = spread > 0 ? `${S.zone1} premium` : `${S.zone2} premium`;
+    el('kpi-spread-badge').textContent  = spreadLabel;
+    el('kpi-spread-badge').className    = 'kpi-delta ' + spreadClass;
+
+    el('spread-display').textContent    = fmt$(spread);
+    el('spread-tag').textContent        = spreadLabel;
+    el('spread-tag').className          = 'kpi-delta ' + spreadClass;
+    el('spread-deltatag').textContent   = '24h avg';
+    el('spread-desc').innerHTML         = `<b>${esc(S.zone1)}</b> vs <b>${esc(S.zone2)}</b> basis. ${spread > 0 ? esc(S.zone1) + ' trades at a premium.' : esc(S.zone2) + ' trades at a premium.'}`;
   } else {
-    ['kpi-spread','spread-display','kpi-spread-sub','kpi-spread-badge'].forEach(id => el(id).textContent = '--');
+    ['kpi-spread','spread-display','kpi-spread-sub'].forEach(id => el(id).textContent = '--');
+    el('kpi-spread-badge').textContent = '--'; el('kpi-spread-badge').className = 'kpi-delta';
   }
 
   renderBindingKpis();
@@ -789,52 +978,64 @@ function renderKpis() {
 function renderBindingKpis() {
   const bs = S.binding?.summary;
   if (!bs) return;
-  el('kpi-binding-count').textContent = bs.records ?? '--';
-  const uniq = bs.top_monitored?.length ?? 0;
-  el('kpi-binding-sub').textContent   = `${uniq} unique facilit${uniq !== 1 ? 'ies' : 'y'}`;
-  el('kpi-binding-badge').textContent = (bs.records ?? 0) > 50 ? '⚠ ALERT' : (bs.records ?? 0) > 10 ? '⚠ WATCH' : '✓ LOW';
-  const maxAbs = bs.max_abs_shadow_price;
-  el('kpi-shadow').textContent    = maxAbs != null ? `-$${Math.round(maxAbs)}` : '--';
-  const top = bs.top_constraints?.[0];
-  el('kpi-shadow-sub').textContent= top ? trunc(top.monitored_facility, 30) : '--';
-  el('kpi-shadow-badge').textContent = (maxAbs ?? 0) > 500 ? 'SEVERE' : (maxAbs ?? 0) > 100 ? 'HIGH' : 'MOD';
+
+  const records = bs.records ?? 0;
+  const uniq    = bs.top_monitored?.length ?? 0;
+  const maxAbs  = bs.max_abs_shadow_price ?? 0;
+  const top     = bs.top_constraints?.[0];
+
+  el('kpi-binding-count').textContent  = records;
+  el('kpi-binding-sub').textContent    = `${uniq} unique facilit${uniq !== 1 ? 'ies' : 'y'}`;
+  el('kpi-binding-badge').textContent  = records > 50 ? 'ALERT' : records > 10 ? 'WATCH' : 'LOW';
+  el('kpi-binding-badge').className    = 'kpi-delta ' + (records > 50 ? 'down' : records > 10 ? 'warn' : 'up');
+
+  el('kpi-shadow').textContent         = maxAbs ? `-$${Math.round(maxAbs)}` : '--';
+  el('kpi-shadow-sub').textContent     = top ? trunc(top.monitored_facility, 30) : '--';
+  el('kpi-shadow-badge').textContent   = maxAbs > 500 ? 'SEVERE' : maxAbs > 100 ? 'HIGH' : 'MOD';
+  el('kpi-shadow-badge').className     = 'kpi-delta ' + (maxAbs > 500 ? 'down' : maxAbs > 100 ? 'warn' : '');
 }
 
 function renderMultiKpis() {
-  const bs  = S.binding?.summary;
+  const bs     = S.binding?.summary;
   const maxAbs = bs?.max_abs_shadow_price ?? 0;
   const top    = bs?.top_constraints?.[0];
 
-  const activeZones = S.multiZones.map((z, i) => ({ zone: z, data: S.lmpMulti[i], idx: i }))
-                                   .filter(x => x.zone);
-  const cols = activeZones.length + 2; // zone cols + binding + shadow
+  const activeZones = S.multiZones.map((z, i) => ({ zone: z, data: S.lmpMulti[i], idx: i })).filter(x => x.zone);
+  const cols = activeZones.length + 2;
 
   const zoneCards = activeZones.map(({ zone, data, idx }) => {
     const s = data?.summary;
     const color = ZONE_COLORS[idx];
     return `
-      <div class="kpi" style="--accent-color:${color};">
-        <div class="kpi-label">${esc(zone)} Avg LMP</div>
-        <div class="kpi-val" style="color:${color};">${s ? fmt$(s.average_lmp) : '--'}</div>
+      <div class="kpi" style="--kpi-color:${color};">
+        <div class="kpi-head">
+          <div class="kpi-label">${esc(zone)} Avg LMP</div>
+          <span class="kpi-zone-chip">${esc(zone)}</span>
+        </div>
+        <div class="kpi-val">${s ? fmt$(s.average_lmp) : '--'}</div>
         <div class="kpi-sub">${s ? `Peak ${fmt$(s.max_lmp)} @ ${hourLabel(s.max_hour)}` : '--'}</div>
-        <div class="kpi-badge" style="background:${color}22;color:${color};">${esc(zone)}</div>
       </div>`;
   }).join('');
 
+  const records = bs?.records ?? 0;
   const bindingCard = `
-    <div class="kpi" style="--accent-color:#ff4444;">
-      <div class="kpi-label">Binding Constraints</div>
-      <div class="kpi-val" style="color:var(--red);">${bs?.records ?? '--'}</div>
+    <div class="kpi" style="--kpi-color:var(--red-2);">
+      <div class="kpi-head">
+        <div class="kpi-label">Binding Constraints</div>
+        <span class="kpi-delta ${records > 50 ? 'down' : records > 10 ? 'warn' : 'up'}">${records > 50 ? 'ALERT' : records > 10 ? 'WATCH' : 'LOW'}</span>
+      </div>
+      <div class="kpi-val">${records || '--'}</div>
       <div class="kpi-sub">${(bs?.top_monitored?.length ?? 0)} unique facilities</div>
-      <div class="kpi-badge" style="background:rgba(255,68,68,0.1);color:var(--red);">${(bs?.records ?? 0) > 50 ? '⚠ ALERT' : (bs?.records ?? 0) > 10 ? '⚠ WATCH' : '✓ LOW'}</div>
     </div>`;
 
   const shadowCard = `
-    <div class="kpi" style="--accent-color:#9b7fe8;">
-      <div class="kpi-label">Max Shadow Price</div>
-      <div class="kpi-val" style="color:var(--purple);">${maxAbs ? `-$${Math.round(maxAbs)}` : '--'}</div>
+    <div class="kpi" style="--kpi-color:var(--violet);">
+      <div class="kpi-head">
+        <div class="kpi-label">Max Shadow Price</div>
+        <span class="kpi-delta ${maxAbs > 500 ? 'down' : maxAbs > 100 ? 'warn' : ''}">${maxAbs > 500 ? 'SEVERE' : maxAbs > 100 ? 'HIGH' : 'MOD'}</span>
+      </div>
+      <div class="kpi-val">${maxAbs ? `-$${Math.round(maxAbs)}` : '--'}</div>
       <div class="kpi-sub">${top ? esc(trunc(top.monitored_facility, 30)) : '--'}</div>
-      <div class="kpi-badge" style="background:rgba(155,127,232,0.1);color:var(--purple);">${maxAbs > 500 ? 'SEVERE' : maxAbs > 100 ? 'HIGH' : 'MOD'}</div>
     </div>`;
 
   const row = el('kpi-row-multi');
@@ -845,9 +1046,10 @@ function renderMultiKpis() {
 /* ─── Charts ─── */
 const CHARTS = {};
 
+const monoFont = "'Geist Mono', ui-monospace, monospace";
 const gridStyle = {
-  grid:  { color: 'rgba(255,255,255,0.05)' },
-  ticks: { font: { family: "'IBM Plex Mono',monospace", size: 10 }, color: '#4a5a6a' }
+  grid:  { color: 'rgba(255,255,255,0.04)' },
+  ticks: { font: { family: monoFont, size: 10 }, color: '#565a62' }
 };
 
 function baseOpts(yFmt, ttFmt) {
@@ -858,9 +1060,10 @@ function baseOpts(yFmt, ttFmt) {
     plugins: {
       legend: { display: false },
       tooltip: {
-        backgroundColor: '#0f1318', borderColor: 'rgba(255,255,255,0.1)', borderWidth: 1,
-        titleFont: { family: "'IBM Plex Mono',monospace", size: 10 },
-        bodyFont:  { family: "'IBM Plex Mono',monospace", size: 11 },
+        backgroundColor: '#181b20',
+        borderColor: 'rgba(255,255,255,0.08)', borderWidth: 1,
+        titleFont: { family: monoFont, size: 10 },
+        bodyFont:  { family: monoFont, size: 11 },
         callbacks: { label: ctx => ttFmt(ctx) }
       }
     },
@@ -872,16 +1075,15 @@ function baseOpts(yFmt, ttFmt) {
 }
 
 function initCharts() {
-  // Datasets [0-4]: zone LMP lines; [5]: system energy
   CHARTS.lmp = new Chart(el('lmpChart'), {
     type: 'line',
     data: { labels: HOURS, datasets: [
       ...ZONE_COLORS.map((color, i) => ({
         label: `Zone ${i+1}`, data: [], hidden: i > 1,
         borderColor: color, backgroundColor: ZONE_FILLS[i],
-        borderWidth: 2, pointRadius: 0, fill: true, tension: 0.3
+        borderWidth: 1.8, pointRadius: 0, fill: true, tension: 0.3
       })),
-      { label: 'Sys energy', data: [], borderColor: '#4a5a6a', borderWidth: 1.5,
+      { label: 'Sys energy', data: [], borderColor: '#565a62', borderWidth: 1.5,
         borderDash: [4,3], pointRadius: 0, fill: false, tension: 0.3 }
     ]},
     options: baseOpts(v => '$' + v, ctx => ` ${ctx.dataset.label}: $${ctx.parsed.y.toFixed(2)}`)
@@ -889,16 +1091,15 @@ function initCharts() {
 
   CHARTS.spread = new Chart(el('spreadChart'), {
     type: 'bar',
-    data: { labels: HOURS, datasets: [{ label: 'Spread', data: [], backgroundColor: [], borderRadius: 0 }]},
+    data: { labels: HOURS, datasets: [{ label: 'Spread', data: [], backgroundColor: [], borderRadius: 3 }]},
     options: baseOpts(v => '$' + v, ctx => ` Spread: $${ctx.parsed.y.toFixed(2)}`)
   });
 
-  // Datasets [0-4]: zone congestion bars
   CHARTS.cong = new Chart(el('congChart'), {
     type: 'bar',
     data: { labels: HOURS, datasets: ZONE_COLORS.map((color, i) => ({
       label: `Zone ${i+1} cong`, data: [], hidden: i > 1,
-      backgroundColor: color + (i === 0 ? 'a6' : i === 1 ? '8c' : '80'), borderRadius: 0
+      backgroundColor: color + (i === 0 ? 'a0' : i === 1 ? '80' : '70'), borderRadius: 2
     }))},
     options: baseOpts(v => '$' + v, ctx => ` ${ctx.dataset.label}: $${ctx.parsed.y.toFixed(2)}`)
   });
@@ -906,8 +1107,8 @@ function initCharts() {
   CHARTS.gen = new Chart(el('genChart'), {
     type: 'line',
     data: { labels: HOURS, datasets: [
-      { label: 'Solar', data: [], borderColor: '#ffaa00', backgroundColor: 'rgba(255,170,0,0.12)', borderWidth: 2, pointRadius: 0, fill: true, tension: 0.4 },
-      { label: 'Wind',  data: [], borderColor: 'rgba(0,212,255,0.7)', backgroundColor: 'rgba(0,212,255,0.06)', borderWidth: 2, pointRadius: 0, fill: true, tension: 0.3 }
+      { label: 'Solar', data: [], borderColor: '#fbbf24', backgroundColor: 'rgba(251,191,36,0.12)', borderWidth: 1.8, pointRadius: 0, fill: true, tension: 0.4 },
+      { label: 'Wind',  data: [], borderColor: '#60a5fa', backgroundColor: 'rgba(96,165,250,0.07)',  borderWidth: 1.8, pointRadius: 0, fill: true, tension: 0.3 }
     ]},
     options: baseOpts(v => (v / 1000).toFixed(1) + 'GW', ctx => ` ${ctx.dataset.label}: ${ctx.parsed.y.toLocaleString()} MW`)
   });
@@ -923,7 +1124,6 @@ function updateCharts() {
   const c = CHARTS;
 
   if (S.mode === 'multi') {
-    // datasets [0-4] = zone LMP lines, [5] = sys energy (hidden in multi)
     S.multiZones.forEach((zone, i) => {
       const hrs = rowsByHour(S.lmpMulti[i]);
       c.lmp.data.datasets[i].data   = hrs.map(r => r?.total_lmp_da ?? null);
@@ -936,7 +1136,6 @@ function updateCharts() {
     c.lmp.data.datasets[5].hidden = true;
     c.lmp.update();
     c.cong.update();
-
   } else {
     const h1    = rowsByHour(S.lmp1);
     const h2    = rowsByHour(S.lmp2);
@@ -948,20 +1147,23 @@ function updateCharts() {
     const spread= lmp1.map((v, i) => (v != null && lmp2[i] != null) ? round2(v - lmp2[i]) : null);
     const single = S.mode === 'single';
 
-    c.lmp.data.datasets[0].data   = lmp1;  c.lmp.data.datasets[0].label  = `${S.zone1} LMP`; c.lmp.data.datasets[0].hidden = false;
-    c.lmp.data.datasets[1].data   = lmp2;  c.lmp.data.datasets[1].label  = `${S.zone2} LMP`; c.lmp.data.datasets[1].hidden = single;
+    c.lmp.data.datasets[0].data = lmp1; c.lmp.data.datasets[0].label = `${S.zone1} LMP`; c.lmp.data.datasets[0].hidden = false;
+    c.lmp.data.datasets[1].data = lmp2; c.lmp.data.datasets[1].label = `${S.zone2} LMP`; c.lmp.data.datasets[1].hidden = single;
     [2,3,4].forEach(i => { c.lmp.data.datasets[i].hidden = true; c.lmp.data.datasets[i].data = []; });
-    c.lmp.data.datasets[5].data   = sysE;  c.lmp.data.datasets[5].hidden = false;
+    c.lmp.data.datasets[5].data = sysE; c.lmp.data.datasets[5].hidden = false;
     c.lmp.update();
 
     c.spread.data.datasets[0].data = spread;
     c.spread.data.datasets[0].backgroundColor = spread.map(v =>
-      v == null ? 'transparent' : Math.abs(v) > 8 ? 'rgba(255,170,0,0.85)' : Math.abs(v) > 4 ? 'rgba(255,170,0,0.5)' : 'rgba(255,170,0,0.25)'
+      v == null ? 'transparent'
+        : Math.abs(v) > 8 ? 'oklch(80% 0.14 75 / 0.85)'
+        : Math.abs(v) > 4 ? 'oklch(80% 0.14 75 / 0.5)'
+        : 'oklch(80% 0.14 75 / 0.25)'
     );
     c.spread.update();
 
-    c.cong.data.datasets[0].data   = cong1; c.cong.data.datasets[0].label  = `${S.zone1} cong`; c.cong.data.datasets[0].hidden = false;
-    c.cong.data.datasets[1].data   = cong2; c.cong.data.datasets[1].label  = `${S.zone2} cong`; c.cong.data.datasets[1].hidden = single;
+    c.cong.data.datasets[0].data = cong1; c.cong.data.datasets[0].label = `${S.zone1} cong`; c.cong.data.datasets[0].hidden = false;
+    c.cong.data.datasets[1].data = cong2; c.cong.data.datasets[1].label = `${S.zone2} cong`; c.cong.data.datasets[1].hidden = single;
     [2,3,4].forEach(i => { c.cong.data.datasets[i].hidden = true; c.cong.data.datasets[i].data = []; });
     c.cong.update();
   }
@@ -980,12 +1182,14 @@ function updateCharts() {
 /* ─── Binding list ─── */
 function renderBinding() {
   const rows = S.binding?.rows ?? [];
+  const container = el('binding-list');
+
   if (!rows.length) {
-    el('binding-list').innerHTML = '<div class="empty-state">No binding constraints for this date.</div>';
+    container.innerHTML = '<div class="empty">No binding constraints for this date.</div>';
+    el('binding-count-tag').textContent = '--';
     return;
   }
 
-  // Aggregate per facility: track hours and worst shadow price
   const map = new Map();
   for (const row of rows) {
     const key = row.monitored_facility ?? 'Unknown';
@@ -999,28 +1203,35 @@ function renderBinding() {
     }
   }
 
-  const top = [...map.values()]
-    .sort((a, b) => b.peakAbs - a.peakAbs)
-    .slice(0, 10);
+  const top = [...map.values()].sort((a, b) => b.peakAbs - a.peakAbs).slice(0, 10);
+  const maxPeak = top[0]?.peakAbs ?? 1;
+  el('binding-count-tag').textContent = `${top.length} constraints`;
 
-  el('binding-list').innerHTML = top.map(r => `
-    <div class="constraint-item">
-      <div>
-        <div class="c-name">${esc(r.monitored_facility ?? 'Unknown')}</div>
-        <div class="c-meta">${esc(r.contingency_facility ?? 'Base case')} · <span class="c-territory">${esc(r.monitored_facility?.split(/[\s_]/)[0] ?? '')}</span></div>
-      </div>
-      <div>
-        <div class="c-shadow">${fmt$(r.shadow_price)}</div>
-        <div class="c-hours">${r.hours} hr${r.hours !== 1 ? 's' : ''}</div>
-      </div>
-    </div>`).join('');
+  container.innerHTML = top.map(r => {
+    const pct = Math.round((r.peakAbs / maxPeak) * 100);
+    const territory = (r.monitored_facility ?? '').split(/[\s_-]/)[0] ?? '';
+    return `
+      <div class="c-row">
+        <div>
+          <div class="c-name">${esc(r.monitored_facility ?? 'Unknown')}</div>
+          <div class="c-meta">${esc(r.contingency_facility ?? 'Base case')} <span class="c-chip">${esc(territory)}</span></div>
+          <div class="c-bar"><div style="width:${pct}%"></div></div>
+        </div>
+        <div>
+          <div class="c-shadow">${fmt$(r.shadow_price)}</div>
+          <div class="c-hours">${r.hours} hr${r.hours !== 1 ? 's' : ''}</div>
+        </div>
+      </div>`;
+  }).join('');
 }
 
 /* ─── Heatmap ─── */
 function renderHeatmap() {
   const rows = S.binding?.rows ?? [];
+  const wrap = el('heatmap-wrap');
+
   if (!rows.length) {
-    el('heatmap').innerHTML = '<div class="empty-state">No constraint data.</div>';
+    wrap.innerHTML = '<div class="empty">No constraint data.</div>';
     return;
   }
 
@@ -1034,58 +1245,51 @@ function renderHeatmap() {
     if ((f.data[h] ?? 0) < sp) { f.total += sp - (f.data[h] ?? 0); f.data[h] = sp; }
   }
 
-  const constraints = [...facilityMap.values()]
-    .sort((a, b) => b.total - a.total)
-    .slice(0, 10);
-
+  const constraints = [...facilityMap.values()].sort((a, b) => b.total - a.total).slice(0, 10);
   const maxVal = Math.max(...constraints.flatMap(c => Object.values(c.data)));
 
-  let html = `<div style="display:grid;grid-template-columns:130px repeat(24,1fr);gap:1px;font-family:'IBM Plex Mono',monospace;">`;
-  html += `<div style="font-size:9px;color:#4a5a6a;padding:3px 0;"></div>`;
-  HOURS.forEach(h => { html += `<div style="font-size:9px;color:#4a5a6a;text-align:center;padding:3px 0;">${esc(h)}</div>`; });
+  let html = `<div class="heatmap">`;
+  html += `<div class="hm-corner"></div>`;
+  for (let h = 0; h < 24; h++) html += `<div class="hm-h">H${h}</div>`;
 
   for (const c of constraints) {
-    const label = trunc(c.name, 18);
-    html += `<div class="hm-name" data-full="${esc(c.name)}" style="font-size:9px;color:#7a8a9a;padding:4px 4px 4px 0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;align-self:center;cursor:default;">${esc(label)}</div>`;
+    html += `<div class="hm-label" data-full="${esc(c.name)}" title="${esc(c.name)}">${esc(trunc(c.name, 28))}</div>`;
     for (let h = 0; h < 24; h++) {
       const v = c.data[h] ?? 0;
       const t = maxVal > 0 ? Math.min(1, v / maxVal) : 0;
-      const bg = v > 0 ? `rgba(${Math.round(255*t)},${Math.round(68*t)},${Math.round(68*t)},${(0.15 + t * 0.7).toFixed(2)})` : 'transparent';
-      const txt = v >= 10 ? Math.round(v) : v > 0 ? v.toFixed(1) : '';
-      const tc  = v > maxVal * 0.5 ? '#ff9999' : v > maxVal * 0.2 ? '#ffaaaa' : '#ff6666';
-      html += `<div style="height:22px;background:${bg};display:flex;align-items:center;justify-content:center;font-size:8px;color:${tc};" title="${esc(c.name)} H${h}: ${v ? '-$' + v.toFixed(0) : 'none'}">${txt}</div>`;
+      const alpha = v > 0 ? (0.15 + t * 0.8).toFixed(2) : '0';
+      const bg    = v > 0 ? `oklch(67% 0.20 25 / ${alpha})` : 'transparent';
+      const txt   = v >= 10 ? Math.round(v) : v > 0 ? v.toFixed(1) : '';
+      html += `<div class="hm-cell" style="background:${bg};" title="${esc(c.name)} H${h}: ${v ? '-$' + v.toFixed(0) : 'none'}">${txt}</div>`;
     }
   }
   html += '</div>';
-  el('heatmap').innerHTML = html;
+  wrap.innerHTML = html;
   wireHeatmapTooltip();
 }
 
-/* ─── Heatmap tooltip ─── */
 function wireHeatmapTooltip() {
-  const tip = el('hm-tip');
-  el('heatmap').addEventListener('mousemove', e => {
-    const cell = e.target.closest('.hm-name');
+  const tip  = el('hm-tip');
+  const wrap = el('heatmap-wrap');
+  wrap.addEventListener('mousemove', e => {
+    const cell = e.target.closest('.hm-label');
     if (!cell) { tip.classList.remove('visible'); return; }
     tip.textContent = cell.dataset.full;
     tip.classList.add('visible');
-    const pad = 12;
-    const tw = tip.offsetWidth, th = tip.offsetHeight;
+    const pad = 12, tw = tip.offsetWidth, th = tip.offsetHeight;
     let x = e.clientX + pad, y = e.clientY + pad;
     if (x + tw > window.innerWidth  - 8) x = e.clientX - tw - pad;
     if (y + th > window.innerHeight - 8) y = e.clientY - th - pad;
-    tip.style.left = x + 'px';
-    tip.style.top  = y + 'px';
+    tip.style.left = x + 'px'; tip.style.top = y + 'px';
   });
-  el('heatmap').addEventListener('mouseleave', () => tip.classList.remove('visible'));
+  wrap.addEventListener('mouseleave', () => tip.classList.remove('visible'));
 }
 
 /* ─── Renewable stats ─── */
 function renderRenewableStats() {
   const s = S.renewables?.summary;
-  el('solar-peak').textContent = s ? fmtMW(s.peak_solar_mw)  : '-- MW';
-  el('wind-peak').textContent  = s ? fmtMW(s.peak_wind_mw)   : '-- MW';
-
+  el('solar-peak').textContent = s ? fmtMW(s.peak_solar_mw) : '-- MW';
+  el('wind-peak').textContent  = s ? fmtMW(s.peak_wind_mw)  : '-- MW';
   if (S.renewables?.rows?.length) {
     const total = S.renewables.rows.reduce((sum, r) => sum + (r.total_renewable_mw ?? 0), 0);
     el('total-mwh').textContent = Math.round(total).toLocaleString();
@@ -1094,61 +1298,60 @@ function renderRenewableStats() {
   }
 }
 
-/* ─── Alert feed ─── */
-function renderAlerts() {
-  const alerts = [];
-  const ts = new Date().toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit' }) + ' EPT';
+/* ─── Event feed ─── */
+const ICON_ALERT = `<svg viewBox="0 0 16 16" fill="none"><path d="M8 2L2 13h12L8 2z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/><path d="M8 6v4M8 11.5v.5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>`;
+const ICON_WARN  = `<svg viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="5.5" stroke="currentColor" stroke-width="1.3"/><path d="M8 5v3.5M8 10v.5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>`;
+const ICON_INFO  = `<svg viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="5.5" stroke="currentColor" stroke-width="1.3"/><path d="M8 7v4M8 5.5v.5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>`;
+const ICON_OK    = `<svg viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="5.5" stroke="currentColor" stroke-width="1.3"/><path d="M5.5 8l2 2 3-3" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
 
-  // Publish info
+function renderEvents() {
+  const events = [];
+  const ts = new Date().toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit' }) + ' EPT';
   const s1 = S.lmp1?.summary, s2 = S.lmp2?.summary, bs = S.binding?.summary;
+
   let z2info = '';
   if (S.mode === 'compare') z2info = ` · ${esc(S.zone2)} avg ${fmt$(s2?.average_lmp)}`;
   else if (S.mode === 'multi') {
     const parts = S.multiZones.map((z, i) => z ? `${esc(z)} ${fmt$(S.lmpMulti[i]?.summary?.average_lmp)}` : '').filter(Boolean);
     z2info = ' — ' + parts.join(' · ');
   }
-  alerts.push({ color: 'green', msg: `DA data loaded for ${esc(S.date)}. ${esc(S.zone1)} avg ${fmt$(s1?.average_lmp)}${z2info}.`, time: `${ts} · severity: INFO` });
+  events.push({ sev: 'ok', icon: ICON_OK, msg: `DA data loaded for ${esc(S.date)}. ${esc(S.zone1)} avg ${fmt$(s1?.average_lmp)}${z2info}.`, tag: 'INFO', time: ts });
 
-  // LMP spike
-  if (s1?.max_lmp > 80) alerts.unshift({ color: 'red',
-    msg: `${esc(S.zone1)} LMP spike: <strong>${fmt$(s1.max_lmp)}/MWh</strong> at ${hourLabel(s1.max_hour)} — exceeded $80 threshold.`,
-    time: `${ts} · severity: HIGH` });
+  if (s1?.max_lmp > 80) events.unshift({ sev: 'high', icon: ICON_ALERT,
+    msg: `${esc(S.zone1)} LMP spike: <b>${fmt$(s1.max_lmp)}/MWh</b> at ${hourLabel(s1.max_hour)} — exceeded $80 threshold.`,
+    tag: 'HIGH', time: ts });
 
-  // Shadow price extremes
   const maxAbs = bs?.max_abs_shadow_price ?? 0;
   if (maxAbs > 500) {
     const top = bs?.top_constraints?.[0];
-    alerts.unshift({ color: 'red',
-      msg: `Extreme shadow price <strong>-$${Math.round(maxAbs)}/MWh</strong>${top ? ` on ${esc(trunc(top.monitored_facility, 40))}` : ''}.`,
-      time: `${ts} · severity: CRITICAL` });
+    events.unshift({ sev: 'high', icon: ICON_ALERT,
+      msg: `Extreme shadow price <b>-$${Math.round(maxAbs)}/MWh</b>${top ? ` on ${esc(trunc(top.monitored_facility, 40))}` : ''}.`,
+      tag: 'CRITICAL', time: ts });
   } else if (maxAbs > 100) {
-    alerts.unshift({ color: 'red',
-      msg: `High shadow price detected: <strong>-$${Math.round(maxAbs)}/MWh</strong>. ${bs?.records ?? 0} binding records.`,
-      time: `${ts} · severity: HIGH` });
+    events.unshift({ sev: 'high', icon: ICON_ALERT,
+      msg: `High shadow price detected: <b>-$${Math.round(maxAbs)}/MWh</b>. ${bs?.records ?? 0} binding records.`,
+      tag: 'HIGH', time: ts });
   }
 
-  // Persistent constraints (≥12 hrs)
   const hoursMap = {};
   for (const r of (S.binding?.rows ?? [])) {
     const k = r.monitored_facility ?? 'Unknown';
     hoursMap[k] = (hoursMap[k] ?? 0) + 1;
   }
-  Object.entries(hoursMap)
-    .filter(([, h]) => h >= 12)
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, 2)
-    .forEach(([name, hours]) => {
-      alerts.push({ color: 'amber',
-        msg: `${esc(trunc(name, 50))} binding for <strong>${hours} consecutive hours</strong>.`,
-        time: `${ts} · severity: MODERATE` });
-    });
+  Object.entries(hoursMap).filter(([, h]) => h >= 12).sort((a, b) => b[1] - a[1]).slice(0, 2).forEach(([name, hours]) => {
+    events.push({ sev: 'mod', icon: ICON_WARN,
+      msg: `${esc(trunc(name, 50))} binding for <b>${hours} consecutive hours</b>.`,
+      tag: 'MODERATE', time: ts });
+  });
 
-  el('alert-feed').innerHTML = alerts.slice(0, 6).map(a => `
-    <div class="alert-item">
-      <div class="alert-icon ${a.color}"></div>
-      <div class="alert-body">
-        <div class="alert-msg">${a.msg}</div>
-        <div class="alert-time">${esc(a.time)}</div>
+  const tagClass = { ok: 'ok', high: 'high', mod: 'mod', info: 'info' };
+  el('event-feed').innerHTML = events.slice(0, 6).map(ev => `
+    <div class="event">
+      <div class="event-icon ${ev.sev}">${ev.icon}</div>
+      <div class="event-msg">${ev.msg}</div>
+      <div class="event-meta">
+        ${esc(ev.time)}<br>
+        <span class="event-tag ${tagClass[ev.sev] ?? 'info'}">${esc(ev.tag)}</span>
       </div>
     </div>`).join('');
 }
@@ -1157,95 +1360,76 @@ function renderAlerts() {
 async function triggerAnalysis() {
   const btn = el('btn-analysis');
   btn.disabled = true;
-  btn.innerHTML = '<span class="spinner"></span>RUNNING';
-  el('analysis-content').innerHTML = `<div class="empty-state" style="line-height:1.9;"><span class="spinner"></span> Generating analysis…</div>`;
+  btn.innerHTML = `<svg viewBox="0 0 12 12" fill="none"><path d="M3 2.5l6 3.5-6 3.5v-7z" fill="currentColor"/></svg>Running…`;
+  el('analysis-content').innerHTML = `<p style="color:var(--text-mute);">Generating analysis…</p>`;
 
   try {
     const common = { binding: S.binding, transmission: S.transmission, renewables: S.renewables };
     let payload;
     if (S.mode === 'compare') {
-      payload = {
-        context: { mode: 'compare', zone1: S.zone1, zone2: S.zone2, area: S.area, date: S.date },
-        lmp1: S.lmp1, lmp2: S.lmp2,
-        ...common
-      };
+      payload = { context: { mode: 'compare', zone1: S.zone1, zone2: S.zone2, area: S.area, date: S.date }, lmp1: S.lmp1, lmp2: S.lmp2, ...common };
     } else if (S.mode === 'multi') {
       payload = {
         context: { mode: 'multi', zones: S.multiZones.filter(Boolean), area: S.area, date: S.date },
-        lmpZones: S.multiZones
-          .map((z, i) => z ? { zone: z, summary: S.lmpMulti[i]?.summary, rows: S.lmpMulti[i]?.rows } : null)
-          .filter(Boolean),
+        lmpZones: S.multiZones.map((z, i) => z ? { zone: z, summary: S.lmpMulti[i]?.summary, rows: S.lmpMulti[i]?.rows } : null).filter(Boolean),
         ...common
       };
     } else {
-      payload = {
-        context: { mode: 'single', zone: S.zone1, area: S.area, date: S.date },
-        lmp: S.lmp1,
-        ...common
-      };
+      payload = { context: { mode: 'single', zone: S.zone1, area: S.area, date: S.date }, lmp: S.lmp1, ...common };
     }
+
     const r = await fetch('/api/analysis', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)
     });
     const json = await r.json();
     if (json.error) throw new Error(String(json.error));
 
-    const model = String(json.model ?? 'AI').toUpperCase();
-    const ts = new Date().toLocaleString('en-US', { hour12: false }) + ' EPT';
+    const model = String(json.model ?? 'AI');
+    const ts    = new Date().toLocaleString('en-US', { hour12: false }) + ' EPT';
 
     el('analysis-content').innerHTML = `
-      <div class="analysis-body">
-        <div class="analysis-label"><div class="ai-dot"></div>${esc(model)} · ${esc(ts)}</div>
-        <div class="analysis-text" id="analysis-md"></div>
-      </div>`;
+      <div class="ai-meta">
+        <span style="display:inline-flex;align-items:center;gap:6px;"><span class="ai-dot"></span>${esc(model)}</span>
+        <span>${esc(ts)}</span>
+      </div>
+      <div id="analysis-md"></div>`;
     renderMarkdown(el('analysis-md'), json.analysis ?? '');
   } catch (err) {
-    el('analysis-content').innerHTML = `<div class="error-state">Analysis failed: ${esc(err.message)}</div>`;
+    el('analysis-content').innerHTML = `<p class="error-msg">Analysis failed: ${esc(err.message)}</p>`;
   } finally {
     btn.disabled = false;
-    btn.textContent = '▶ RUN';
+    btn.innerHTML = `<svg viewBox="0 0 12 12" fill="none"><path d="M3 2.5l6 3.5-6 3.5v-7z" fill="currentColor"/></svg>Run`;
   }
 }
 
 function renderMarkdown(container, raw) {
-  // Escape HTML first, then apply safe markdown transformations
-  const safe = raw
-    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-
+  const safe = raw.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
   const html = safe
-    .replace(/^#{1,3}\s+(.+)$/gm, '<span class="md-heading">$1</span>')
+    .replace(/^#{1,3}\s+(.+)$/gm, '<h3>$1</h3>')
     .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
     .replace(/\*(.+?)\*/g, '<em>$1</em>')
-    .replace(/`(.+?)`/g, '<code style="font-family:var(--mono);font-size:12px;color:var(--accent);">$1</code>')
+    .replace(/`(.+?)`/g, '<code>$1</code>')
     .split(/\n\n+/)
-    .map(block => block.trim() ? `<p>${block.replace(/\n/g,'<br>')}</p>` : '')
+    .map(block => block.trim() ? (block.startsWith('<h3>') ? block : `<p>${block.replace(/\n/g,'<br>')}</p>`) : '')
     .join('');
-
   container.innerHTML = html;
 }
 
-/* ─── LMP legend (rebuilt on every render) ─── */
+/* ─── LMP legend ─── */
 function renderLmpLegend() {
   const legend = el('lmp-legend');
   const swatch = (color, dash) =>
-    `<span style="display:inline-block;width:16px;height:2px;background:${dash?'none':color};${dash?`border-top:2px dashed ${color}`:''};"></span>`;
+    `<span style="display:inline-block;width:14px;height:${dash?'0':'10px'};border-radius:3px;background:${dash?'none':color};${dash?`border-top:2px dashed ${color}`:''};"></span>`;
 
   if (S.mode === 'multi') {
-    legend.innerHTML = S.multiZones
-      .map((z, i) => z
-        ? `<span style="display:flex;align-items:center;gap:5px;">${swatch(ZONE_COLORS[i])}${esc(z)}</span>`
-        : '')
-      .join('');
+    legend.innerHTML = S.multiZones.map((z, i) => z
+      ? `<span class="legend-item">${swatch(ZONE_COLORS[i])}${esc(z)}</span>`
+      : '').join('');
   } else {
-    const z1 = S.zone1, z2 = S.zone2;
     legend.innerHTML =
-      `<span style="display:flex;align-items:center;gap:5px;">${swatch(ZONE_COLORS[0])}${esc(z1)} LMP</span>` +
-      (S.mode === 'compare'
-        ? `<span style="display:flex;align-items:center;gap:5px;">${swatch(ZONE_COLORS[1])}${esc(z2)} LMP</span>`
-        : '') +
-      `<span style="display:flex;align-items:center;gap:5px;">${swatch('#4a5a6a', true)}System energy</span>`;
+      `<span class="legend-item">${swatch(ZONE_COLORS[0])}${esc(S.zone1)} LMP</span>` +
+      (S.mode === 'compare' ? `<span class="legend-item">${swatch(ZONE_COLORS[1])}${esc(S.zone2)} LMP</span>` : '') +
+      `<span class="legend-item">${swatch('#565a62', true)}System energy</span>`;
   }
 }
 
@@ -1253,9 +1437,7 @@ function renderLmpLegend() {
 function setMode(mode) {
   S.mode = mode;
   document.body.className = 'mode-' + mode;
-  ['compare','single','multi'].forEach(m =>
-    el('mtab-' + m).classList.toggle('active', m === mode)
-  );
+  ['compare','single','multi'].forEach(m => el('mtab-' + m).classList.toggle('active', m === mode));
   if (mode === 'single') {
     S.lmp2 = null;
     if (CHARTS.lmp)  { [1,2,3,4].forEach(i => { CHARTS.lmp.data.datasets[i].hidden = true; }); CHARTS.lmp.update(); }
@@ -1266,6 +1448,28 @@ function setMode(mode) {
   }
 }
 
+/* ─── Event wiring ─── */
+el('mode-seg').addEventListener('click', e => {
+  const btn = e.target.closest('button[data-mode]');
+  if (btn) setMode(btn.dataset.mode);
+});
+el('zone1-select').addEventListener('change', onZoneChange);
+el('zone2-select').addEventListener('change', onZoneChange);
+['mz2-select','mz3-select','mz4-select','mz5-select'].forEach(id => el(id).addEventListener('change', onMultiZoneChange));
+el('area-select').addEventListener('change', onAreaChange);
+el('date-input').addEventListener('change', onDateInput);
+el('prev-day').addEventListener('click', prevDay);
+el('next-day').addEventListener('click', nextDay);
+el('today-btn').addEventListener('click', goToday);
+el('refresh-btn').addEventListener('click', () => loadAll());
+el('btn-analysis').addEventListener('click', triggerAnalysis);
+
+function onZoneChange() {
+  S.zone1 = el('zone1-select').value;
+  S.zone2 = el('zone2-select').value;
+  S.multiZones[0] = S.zone1;
+  loadAll();
+}
 function onMultiZoneChange() {
   S.multiZones[1] = el('mz2-select').value;
   S.multiZones[2] = el('mz3-select').value;
@@ -1273,35 +1477,15 @@ function onMultiZoneChange() {
   S.multiZones[4] = el('mz5-select').value;
   loadAll();
 }
-
-/* ─── Date navigation ─── */
-function prevDay()      { S.date = dateAdd(S.date, -1); loadAll(); }
-function nextDay()      { S.date = dateAdd(S.date,  1); loadAll(); }
-function goToday()      { S.date = dateStr(new Date()); loadAll(); }
-function onDateInput()  {
-  const val = el('date-input').value;
-  if (val && /^\d{4}-\d{2}-\d{2}$/.test(val)) { S.date = val; loadAll(); }
-}
-
-function onZoneChange() {
-  S.zone1 = el('zone1-select').value;
-  S.zone2 = el('zone2-select').value;
-  S.multiZones[0] = S.zone1;   // zone1-select is shared with multi slot 0
-  loadAll();
-}
-
-function onAreaChange() {
-  S.area = el('area-select').value;
-  loadAll();
-}
-
-async function refreshData() { await loadAll(); }
+function onAreaChange()  { S.area  = el('area-select').value; loadAll(); }
+function prevDay()       { S.date  = dateAdd(S.date, -1);     loadAll(); }
+function nextDay()       { S.date  = dateAdd(S.date,  1);     loadAll(); }
+function goToday()       { S.date  = dateStr(new Date());      loadAll(); }
+function onDateInput()   { const v = el('date-input').value; if (v && /^\d{4}-\d{2}-\d{2}$/.test(v)) { S.date = v; loadAll(); } }
 
 /* ─── Clock ─── */
 function tick() {
-  const now = new Date();
-  el('clock').textContent = now.toLocaleTimeString('en-US', { hour12: false });
-  el('next-update').textContent = `in ${60 - now.getMinutes() % 60} min`;
+  el('clock').textContent = new Date().toLocaleTimeString('en-US', { hour12: false });
 }
 tick();
 setInterval(tick, 1000);
