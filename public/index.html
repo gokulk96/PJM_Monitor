@@ -223,6 +223,17 @@
 
   .hm-cell:hover { opacity: 0.7; cursor: default; }
 
+  /* ── Heatmap row-label tooltip ── */
+  #hm-tip {
+    position: fixed; z-index: 500; pointer-events: none;
+    display: none;
+    font-family: var(--mono); font-size: 11px; color: var(--text);
+    background: var(--bg3); border: 1px solid var(--border2);
+    padding: 5px 10px; white-space: nowrap;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.5);
+  }
+  #hm-tip.visible { display: block; }
+
   .empty-state {
     font-family: var(--mono); font-size: 11px; color: var(--text3);
     padding: 24px; text-align: center;
@@ -284,9 +295,17 @@
   input.date-input:focus { outline: none; border-color: var(--accent); color: var(--accent); }
 
   /* ── Mode-driven visibility ── */
-  body.mode-single .compare-only { display: none !important; }
-  body.mode-single .kpi-row      { grid-template-columns: repeat(3, 1fr); }
-  body.mode-single .lmp-grid     { grid-template-columns: 1fr; }
+  body.mode-single  .compare-only { display: none !important; }
+  body.mode-multi   .compare-only { display: none !important; }
+  body:not(.mode-multi) .multi-only { display: none !important; }
+
+  body.mode-single .kpi-row-static { grid-template-columns: repeat(3, 1fr); }
+  body.mode-multi  .kpi-row-static { display: none !important; }
+  body:not(.mode-multi) #kpi-row-multi { display: none !important; }
+  body.mode-multi  #kpi-row-multi { display: grid; margin-bottom: 20px; gap: 12px; }
+
+  body.mode-single .lmp-grid { grid-template-columns: 1fr; }
+  body.mode-multi  .lmp-grid { grid-template-columns: 1fr; }
 
   @media (max-width: 900px) {
     .kpi-row { grid-template-columns: repeat(3, 1fr); }
@@ -329,11 +348,20 @@
         <div class="mode-toggle">
           <button class="mtab active" id="mtab-compare" onclick="setMode('compare')">COMPARE</button>
           <button class="mtab"        id="mtab-single"  onclick="setMode('single')">SINGLE</button>
+          <button class="mtab"        id="mtab-multi"   onclick="setMode('multi')">MULTI</button>
         </div>
         <span class="selector-lbl">Z1</span>
         <select id="zone1-select" class="zone-select" onchange="onZoneChange()"></select>
         <span class="selector-lbl compare-only">vs</span>
         <select id="zone2-select" class="zone-select compare-only" onchange="onZoneChange()"></select>
+        <span class="selector-lbl multi-only">Z2</span>
+        <select id="mz2-select" class="zone-select multi-only" onchange="onMultiZoneChange()"></select>
+        <span class="selector-lbl multi-only">Z3</span>
+        <select id="mz3-select" class="zone-select multi-only" onchange="onMultiZoneChange()"></select>
+        <span class="selector-lbl multi-only">Z4</span>
+        <select id="mz4-select" class="zone-select multi-only" onchange="onMultiZoneChange()"></select>
+        <span class="selector-lbl multi-only">Z5</span>
+        <select id="mz5-select" class="zone-select multi-only" onchange="onMultiZoneChange()"></select>
         <span class="selector-lbl">AREA</span>
         <select id="area-select" class="zone-select" onchange="onAreaChange()"></select>
       </div>
@@ -348,8 +376,8 @@
     </div>
   </div>
 
-  <!-- KPI ROW -->
-  <div class="kpi-row">
+  <!-- KPI ROW (single / compare) -->
+  <div class="kpi-row kpi-row-static">
     <div class="kpi" style="--accent-color:#00d4ff;">
       <div class="kpi-label" id="kpi-z1-label">Zone 1 Avg LMP</div>
       <div class="kpi-val" id="kpi-z1-avg" style="color:var(--accent);">--</div>
@@ -382,6 +410,9 @@
     </div>
   </div>
 
+  <!-- KPI ROW (multi) — populated by JS -->
+  <div id="kpi-row-multi"></div>
+
   <!-- LMP CHART + SPREAD -->
   <div class="grid-3 lmp-grid" style="margin-bottom:16px;">
     <div class="panel">
@@ -390,11 +421,7 @@
         <span class="panel-tag">$/MWh · HE00–HE23</span>
       </div>
       <div class="panel-body">
-        <div style="display:flex;gap:16px;margin-bottom:12px;font-family:var(--mono);font-size:10px;color:var(--text3);">
-          <span style="display:flex;align-items:center;gap:5px;"><span style="display:inline-block;width:16px;height:2px;background:var(--accent);"></span><span id="legend-z1">Zone 1 LMP</span></span>
-          <span class="compare-only" style="display:flex;align-items:center;gap:5px;"><span style="display:inline-block;width:16px;height:2px;background:var(--green);"></span><span id="legend-z2">Zone 2 LMP</span></span>
-          <span style="display:flex;align-items:center;gap:5px;"><span style="display:inline-block;width:16px;height:2px;background:var(--text3);border-top:2px dashed var(--text3);"></span>System energy</span>
-        </div>
+        <div id="lmp-legend" style="display:flex;gap:16px;margin-bottom:12px;font-family:var(--mono);font-size:10px;color:var(--text3);flex-wrap:wrap;"></div>
         <div class="chart-wrap" style="height:240px;"><canvas id="lmpChart"></canvas></div>
       </div>
     </div>
@@ -521,6 +548,8 @@
   <div class="footer-txt" id="footer-ts">Last refresh: --</div>
 </footer>
 
+<div id="hm-tip"></div>
+
 <script>
 /* ─── State ─── */
 const S = {
@@ -528,14 +557,23 @@ const S = {
   zone1: 'DOM',
   zone2: 'AEP',
   area: 'RTO',
-  mode: 'compare',   // 'compare' | 'single'
+  mode: 'compare',          // 'compare' | 'single' | 'multi'
+  multiZones: ['DOM','AEP','PSEG','',''],
   lmp1: null,
   lmp2: null,
+  lmpMulti: [null,null,null,null,null],
   binding: null,
   transmission: null,
   renewables: null,
   loading: false
 };
+
+/* ─── Zone palette (for multi mode) ─── */
+const ZONE_COLORS = ['#00d4ff','#00e676','#ffaa00','#9b7fe8','#ff6b6b'];
+const ZONE_FILLS  = [
+  'rgba(0,212,255,0.06)','rgba(0,230,118,0.05)','rgba(255,170,0,0.05)',
+  'rgba(155,127,232,0.05)','rgba(255,107,107,0.05)'
+];
 
 /* ─── Utils ─── */
 function dateStr(d) { return d.toISOString().slice(0, 10); }
@@ -596,11 +634,19 @@ async function loadStatus() {
   const zones = d.zones ?? [];
   const areas = d.renewableAreas ?? ['RTO'];
 
-  ['zone1-select', 'zone2-select'].forEach((id, i) => {
+  const noneOpt = `<option value="">— none —</option>`;
+  ['zone1-select','zone2-select'].forEach((id, i) => {
     const sel = el(id);
-    const current = i === 0 ? S.zone1 : S.zone2;
+    const cur = i === 0 ? S.zone1 : S.zone2;
     sel.innerHTML = zones.map(z =>
-      `<option value="${esc(z)}"${z === current ? ' selected' : ''}>${esc(z)}</option>`
+      `<option value="${esc(z)}"${z === cur ? ' selected' : ''}>${esc(z)}</option>`
+    ).join('');
+  });
+  ['mz2-select','mz3-select','mz4-select','mz5-select'].forEach((id, i) => {
+    const sel = el(id);
+    const cur = S.multiZones[i + 1];
+    sel.innerHTML = noneOpt + zones.map(z =>
+      `<option value="${esc(z)}"${z === cur ? ' selected' : ''}>${esc(z)}</option>`
     ).join('');
   });
 
@@ -629,23 +675,40 @@ async function loadAll() {
   try {
     await loadStatus();
 
-    const zone2Fetch = S.mode === 'compare'
-      ? apiFetch(`/api/pjm/da-lmp/zone?zone=${encodeURIComponent(S.zone2)}&date=${S.date}`)
-      : Promise.resolve(null);
+    if (S.mode === 'multi') {
+      const [lmpResults, rb, rt, rn] = await Promise.allSettled([
+        Promise.allSettled(S.multiZones.map(z =>
+          z ? apiFetch(`/api/pjm/da-lmp/zone?zone=${encodeURIComponent(z)}&date=${S.date}`)
+            : Promise.resolve(null)
+        )),
+        apiFetch(`/api/pjm/constraints/binding?date=${S.date}`),
+        apiFetch(`/api/pjm/constraints/transmission?date=${S.date}`),
+        apiFetch(`/api/pjm/renewables?date=${S.date}&area=${encodeURIComponent(S.area)}`)
+      ]);
+      S.lmpMulti    = (lmpResults.status === 'fulfilled' ? lmpResults.value : [])
+                        .map(r => r?.status === 'fulfilled' ? r.value : null);
+      S.lmp1        = S.lmpMulti[0];
+      S.binding     = rb.status === 'fulfilled' ? rb.value : null;
+      S.transmission= rt.status === 'fulfilled' ? rt.value : null;
+      S.renewables  = rn.status === 'fulfilled' ? rn.value : null;
+    } else {
+      const zone2Fetch = S.mode === 'compare'
+        ? apiFetch(`/api/pjm/da-lmp/zone?zone=${encodeURIComponent(S.zone2)}&date=${S.date}`)
+        : Promise.resolve(null);
 
-    const [r1, r2, rb, rt, rn] = await Promise.allSettled([
-      apiFetch(`/api/pjm/da-lmp/zone?zone=${encodeURIComponent(S.zone1)}&date=${S.date}`),
-      zone2Fetch,
-      apiFetch(`/api/pjm/constraints/binding?date=${S.date}`),
-      apiFetch(`/api/pjm/constraints/transmission?date=${S.date}`),
-      apiFetch(`/api/pjm/renewables?date=${S.date}&area=${encodeURIComponent(S.area)}`)
-    ]);
-
-    S.lmp1        = r1.status === 'fulfilled' ? r1.value : null;
-    S.lmp2        = r2.status === 'fulfilled' ? r2.value : null;
-    S.binding     = rb.status === 'fulfilled' ? rb.value : null;
-    S.transmission= rt.status === 'fulfilled' ? rt.value : null;
-    S.renewables  = rn.status === 'fulfilled' ? rn.value : null;
+      const [r1, r2, rb, rt, rn] = await Promise.allSettled([
+        apiFetch(`/api/pjm/da-lmp/zone?zone=${encodeURIComponent(S.zone1)}&date=${S.date}`),
+        zone2Fetch,
+        apiFetch(`/api/pjm/constraints/binding?date=${S.date}`),
+        apiFetch(`/api/pjm/constraints/transmission?date=${S.date}`),
+        apiFetch(`/api/pjm/renewables?date=${S.date}&area=${encodeURIComponent(S.area)}`)
+      ]);
+      S.lmp1        = r1.status === 'fulfilled' ? r1.value : null;
+      S.lmp2        = r2.status === 'fulfilled' ? r2.value : null;
+      S.binding     = rb.status === 'fulfilled' ? rb.value : null;
+      S.transmission= rt.status === 'fulfilled' ? rt.value : null;
+      S.renewables  = rn.status === 'fulfilled' ? rn.value : null;
+    }
 
     render();
     setStatus('live', 'DA feed active');
@@ -668,18 +731,25 @@ function setStatus(state, text) {
 /* ─── Render ─── */
 function render() {
   const z1 = S.zone1, z2 = S.zone2;
-  const cmp = S.mode === 'compare';
+  const cmp   = S.mode === 'compare';
+  const multi = S.mode === 'multi';
 
-  el('lmp-chart-title').textContent   = cmp ? `Hourly DA LMP — ${z1} vs ${z2}` : `Hourly DA LMP — ${z1}`;
+  if (multi) {
+    const active = S.multiZones.filter(Boolean);
+    el('lmp-chart-title').textContent = `Hourly DA LMP — ${active.join(' · ')}`;
+  } else {
+    el('lmp-chart-title').textContent = cmp ? `Hourly DA LMP — ${z1} vs ${z2}` : `Hourly DA LMP — ${z1}`;
+  }
+
   el('spread-chart-title').textContent= `${z1}–${z2} Basis Spread`;
-  el('kpi-z1-label').textContent      = `${z1} Avg LMP`;
+  el('kpi-z1-label').textContent      = multi ? `${S.multiZones[0] || 'Z1'} Avg LMP` : `${z1} Avg LMP`;
   el('kpi-z2-label').textContent      = `${z2} Avg LMP`;
   el('kpi-spread-label').textContent  = `${z1}–${z2} Spread`;
-  el('legend-z1').textContent         = `${z1} LMP`;
-  el('legend-z2').textContent         = `${z2} LMP`;
-  el('cong-lbl-z1').textContent       = z1;
+  el('cong-lbl-z1').textContent       = multi ? (S.multiZones[0] || 'Z1') : z1;
   el('cong-lbl-z2').textContent       = z2;
   el('area-label').textContent        = S.area;
+
+  renderLmpLegend();
 
   renderKpis();
   updateCharts();
@@ -690,6 +760,8 @@ function render() {
 }
 
 function renderKpis() {
+  if (S.mode === 'multi') { renderMultiKpis(); return; }
+
   const s1 = S.lmp1?.summary;
   const s2 = S.lmp2?.summary;
 
@@ -711,19 +783,63 @@ function renderKpis() {
     ['kpi-spread','spread-display','kpi-spread-sub','kpi-spread-badge'].forEach(id => el(id).textContent = '--');
   }
 
-  const bs = S.binding?.summary;
-  if (bs) {
-    el('kpi-binding-count').textContent = bs.records ?? '--';
-    const uniq = bs.top_monitored?.length ?? 0;
-    el('kpi-binding-sub').textContent  = `${uniq} unique facilit${uniq !== 1 ? 'ies' : 'y'}`;
-    el('kpi-binding-badge').textContent= (bs.records ?? 0) > 50 ? '⚠ ALERT' : (bs.records ?? 0) > 10 ? '⚠ WATCH' : '✓ LOW';
+  renderBindingKpis();
+}
 
-    const maxAbs = bs.max_abs_shadow_price;
-    el('kpi-shadow').textContent    = maxAbs != null ? `-$${Math.round(maxAbs)}` : '--';
-    const top = bs.top_constraints?.[0];
-    el('kpi-shadow-sub').textContent= top ? trunc(top.monitored_facility, 30) : '--';
-    el('kpi-shadow-badge').textContent = (maxAbs ?? 0) > 500 ? 'SEVERE' : (maxAbs ?? 0) > 100 ? 'HIGH' : 'MOD';
-  }
+function renderBindingKpis() {
+  const bs = S.binding?.summary;
+  if (!bs) return;
+  el('kpi-binding-count').textContent = bs.records ?? '--';
+  const uniq = bs.top_monitored?.length ?? 0;
+  el('kpi-binding-sub').textContent   = `${uniq} unique facilit${uniq !== 1 ? 'ies' : 'y'}`;
+  el('kpi-binding-badge').textContent = (bs.records ?? 0) > 50 ? '⚠ ALERT' : (bs.records ?? 0) > 10 ? '⚠ WATCH' : '✓ LOW';
+  const maxAbs = bs.max_abs_shadow_price;
+  el('kpi-shadow').textContent    = maxAbs != null ? `-$${Math.round(maxAbs)}` : '--';
+  const top = bs.top_constraints?.[0];
+  el('kpi-shadow-sub').textContent= top ? trunc(top.monitored_facility, 30) : '--';
+  el('kpi-shadow-badge').textContent = (maxAbs ?? 0) > 500 ? 'SEVERE' : (maxAbs ?? 0) > 100 ? 'HIGH' : 'MOD';
+}
+
+function renderMultiKpis() {
+  const bs  = S.binding?.summary;
+  const maxAbs = bs?.max_abs_shadow_price ?? 0;
+  const top    = bs?.top_constraints?.[0];
+
+  const activeZones = S.multiZones.map((z, i) => ({ zone: z, data: S.lmpMulti[i], idx: i }))
+                                   .filter(x => x.zone);
+  const cols = activeZones.length + 2; // zone cols + binding + shadow
+
+  const zoneCards = activeZones.map(({ zone, data, idx }) => {
+    const s = data?.summary;
+    const color = ZONE_COLORS[idx];
+    return `
+      <div class="kpi" style="--accent-color:${color};">
+        <div class="kpi-label">${esc(zone)} Avg LMP</div>
+        <div class="kpi-val" style="color:${color};">${s ? fmt$(s.average_lmp) : '--'}</div>
+        <div class="kpi-sub">${s ? `Peak ${fmt$(s.max_lmp)} @ ${hourLabel(s.max_hour)}` : '--'}</div>
+        <div class="kpi-badge" style="background:${color}22;color:${color};">${esc(zone)}</div>
+      </div>`;
+  }).join('');
+
+  const bindingCard = `
+    <div class="kpi" style="--accent-color:#ff4444;">
+      <div class="kpi-label">Binding Constraints</div>
+      <div class="kpi-val" style="color:var(--red);">${bs?.records ?? '--'}</div>
+      <div class="kpi-sub">${(bs?.top_monitored?.length ?? 0)} unique facilities</div>
+      <div class="kpi-badge" style="background:rgba(255,68,68,0.1);color:var(--red);">${(bs?.records ?? 0) > 50 ? '⚠ ALERT' : (bs?.records ?? 0) > 10 ? '⚠ WATCH' : '✓ LOW'}</div>
+    </div>`;
+
+  const shadowCard = `
+    <div class="kpi" style="--accent-color:#9b7fe8;">
+      <div class="kpi-label">Max Shadow Price</div>
+      <div class="kpi-val" style="color:var(--purple);">${maxAbs ? `-$${Math.round(maxAbs)}` : '--'}</div>
+      <div class="kpi-sub">${top ? esc(trunc(top.monitored_facility, 30)) : '--'}</div>
+      <div class="kpi-badge" style="background:rgba(155,127,232,0.1);color:var(--purple);">${maxAbs > 500 ? 'SEVERE' : maxAbs > 100 ? 'HIGH' : 'MOD'}</div>
+    </div>`;
+
+  const row = el('kpi-row-multi');
+  row.style.gridTemplateColumns = `repeat(${cols}, 1fr)`;
+  row.innerHTML = zoneCards + bindingCard + shadowCard;
 }
 
 /* ─── Charts ─── */
@@ -756,12 +872,17 @@ function baseOpts(yFmt, ttFmt) {
 }
 
 function initCharts() {
+  // Datasets [0-4]: zone LMP lines; [5]: system energy
   CHARTS.lmp = new Chart(el('lmpChart'), {
     type: 'line',
     data: { labels: HOURS, datasets: [
-      { label: 'Zone 1 LMP', data: [], borderColor: '#00d4ff', backgroundColor: 'rgba(0,212,255,0.05)', borderWidth: 2, pointRadius: 0, fill: true, tension: 0.3 },
-      { label: 'Zone 2 LMP', data: [], borderColor: '#00e676', backgroundColor: 'rgba(0,230,118,0.04)', borderWidth: 2, pointRadius: 0, fill: true, tension: 0.3 },
-      { label: 'Sys energy',  data: [], borderColor: '#4a5a6a', borderWidth: 1.5, borderDash: [4,3], pointRadius: 0, fill: false, tension: 0.3 }
+      ...ZONE_COLORS.map((color, i) => ({
+        label: `Zone ${i+1}`, data: [], hidden: i > 1,
+        borderColor: color, backgroundColor: ZONE_FILLS[i],
+        borderWidth: 2, pointRadius: 0, fill: true, tension: 0.3
+      })),
+      { label: 'Sys energy', data: [], borderColor: '#4a5a6a', borderWidth: 1.5,
+        borderDash: [4,3], pointRadius: 0, fill: false, tension: 0.3 }
     ]},
     options: baseOpts(v => '$' + v, ctx => ` ${ctx.dataset.label}: $${ctx.parsed.y.toFixed(2)}`)
   });
@@ -772,12 +893,13 @@ function initCharts() {
     options: baseOpts(v => '$' + v, ctx => ` Spread: $${ctx.parsed.y.toFixed(2)}`)
   });
 
+  // Datasets [0-4]: zone congestion bars
   CHARTS.cong = new Chart(el('congChart'), {
     type: 'bar',
-    data: { labels: HOURS, datasets: [
-      { label: 'Zone 1 cong', data: [], backgroundColor: 'rgba(0,212,255,0.65)', borderRadius: 0 },
-      { label: 'Zone 2 cong', data: [], backgroundColor: 'rgba(0,230,118,0.55)', borderRadius: 0 }
-    ]},
+    data: { labels: HOURS, datasets: ZONE_COLORS.map((color, i) => ({
+      label: `Zone ${i+1} cong`, data: [], hidden: i > 1,
+      backgroundColor: color + (i === 0 ? 'a6' : i === 1 ? '8c' : '80'), borderRadius: 0
+    }))},
     options: baseOpts(v => '$' + v, ctx => ` ${ctx.dataset.label}: $${ctx.parsed.y.toFixed(2)}`)
   });
 
@@ -798,40 +920,51 @@ function rowsByHour(data) {
 }
 
 function updateCharts() {
-  const h1 = rowsByHour(S.lmp1);
-  const h2 = rowsByHour(S.lmp2);
-
-  const lmp1  = h1.map(r => r?.total_lmp_da ?? null);
-  const lmp2  = h2.map(r => r?.total_lmp_da ?? null);
-  const sysE  = h1.map(r => r?.system_energy_price_da ?? null);
-  const cong1 = h1.map(r => r?.congestion_price_da ?? null);
-  const cong2 = h2.map(r => r?.congestion_price_da ?? null);
-  const spread= lmp1.map((v, i) => (v != null && lmp2[i] != null) ? round2(v - lmp2[i]) : null);
-
   const c = CHARTS;
 
-  const single = S.mode === 'single';
+  if (S.mode === 'multi') {
+    // datasets [0-4] = zone LMP lines, [5] = sys energy (hidden in multi)
+    S.multiZones.forEach((zone, i) => {
+      const hrs = rowsByHour(S.lmpMulti[i]);
+      c.lmp.data.datasets[i].data   = hrs.map(r => r?.total_lmp_da ?? null);
+      c.lmp.data.datasets[i].label  = zone || `Zone ${i+1}`;
+      c.lmp.data.datasets[i].hidden = !zone;
+      c.cong.data.datasets[i].data  = hrs.map(r => r?.congestion_price_da ?? null);
+      c.cong.data.datasets[i].label = (zone || `Zone ${i+1}`) + ' cong';
+      c.cong.data.datasets[i].hidden= !zone;
+    });
+    c.lmp.data.datasets[5].hidden = true;
+    c.lmp.update();
+    c.cong.update();
 
-  c.lmp.data.datasets[0].data    = lmp1;
-  c.lmp.data.datasets[0].label   = `${S.zone1} LMP`;
-  c.lmp.data.datasets[1].data    = lmp2;
-  c.lmp.data.datasets[1].label   = `${S.zone2} LMP`;
-  c.lmp.data.datasets[1].hidden  = single;
-  c.lmp.data.datasets[2].data    = sysE;
-  c.lmp.update();
+  } else {
+    const h1    = rowsByHour(S.lmp1);
+    const h2    = rowsByHour(S.lmp2);
+    const lmp1  = h1.map(r => r?.total_lmp_da ?? null);
+    const lmp2  = h2.map(r => r?.total_lmp_da ?? null);
+    const sysE  = h1.map(r => r?.system_energy_price_da ?? null);
+    const cong1 = h1.map(r => r?.congestion_price_da ?? null);
+    const cong2 = h2.map(r => r?.congestion_price_da ?? null);
+    const spread= lmp1.map((v, i) => (v != null && lmp2[i] != null) ? round2(v - lmp2[i]) : null);
+    const single = S.mode === 'single';
 
-  c.spread.data.datasets[0].data = spread;
-  c.spread.data.datasets[0].backgroundColor = spread.map(v =>
-    v == null ? 'transparent' : Math.abs(v) > 8 ? 'rgba(255,170,0,0.85)' : Math.abs(v) > 4 ? 'rgba(255,170,0,0.5)' : 'rgba(255,170,0,0.25)'
-  );
-  c.spread.update();
+    c.lmp.data.datasets[0].data   = lmp1;  c.lmp.data.datasets[0].label  = `${S.zone1} LMP`; c.lmp.data.datasets[0].hidden = false;
+    c.lmp.data.datasets[1].data   = lmp2;  c.lmp.data.datasets[1].label  = `${S.zone2} LMP`; c.lmp.data.datasets[1].hidden = single;
+    [2,3,4].forEach(i => { c.lmp.data.datasets[i].hidden = true; c.lmp.data.datasets[i].data = []; });
+    c.lmp.data.datasets[5].data   = sysE;  c.lmp.data.datasets[5].hidden = false;
+    c.lmp.update();
 
-  c.cong.data.datasets[0].data   = cong1;
-  c.cong.data.datasets[0].label  = `${S.zone1} cong`;
-  c.cong.data.datasets[1].data   = cong2;
-  c.cong.data.datasets[1].label  = `${S.zone2} cong`;
-  c.cong.data.datasets[1].hidden = single;
-  c.cong.update();
+    c.spread.data.datasets[0].data = spread;
+    c.spread.data.datasets[0].backgroundColor = spread.map(v =>
+      v == null ? 'transparent' : Math.abs(v) > 8 ? 'rgba(255,170,0,0.85)' : Math.abs(v) > 4 ? 'rgba(255,170,0,0.5)' : 'rgba(255,170,0,0.25)'
+    );
+    c.spread.update();
+
+    c.cong.data.datasets[0].data   = cong1; c.cong.data.datasets[0].label  = `${S.zone1} cong`; c.cong.data.datasets[0].hidden = false;
+    c.cong.data.datasets[1].data   = cong2; c.cong.data.datasets[1].label  = `${S.zone2} cong`; c.cong.data.datasets[1].hidden = single;
+    [2,3,4].forEach(i => { c.cong.data.datasets[i].hidden = true; c.cong.data.datasets[i].data = []; });
+    c.cong.update();
+  }
 
   const genH = new Array(24).fill(null).map(() => ({ solar: null, wind: null }));
   for (const row of (S.renewables?.rows ?? [])) {
@@ -913,7 +1046,7 @@ function renderHeatmap() {
 
   for (const c of constraints) {
     const label = trunc(c.name, 18);
-    html += `<div style="font-size:9px;color:#7a8a9a;padding:4px 4px 4px 0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;align-self:center;" title="${esc(c.name)}">${esc(label)}</div>`;
+    html += `<div class="hm-name" data-full="${esc(c.name)}" style="font-size:9px;color:#7a8a9a;padding:4px 4px 4px 0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;align-self:center;cursor:default;">${esc(label)}</div>`;
     for (let h = 0; h < 24; h++) {
       const v = c.data[h] ?? 0;
       const t = maxVal > 0 ? Math.min(1, v / maxVal) : 0;
@@ -925,6 +1058,26 @@ function renderHeatmap() {
   }
   html += '</div>';
   el('heatmap').innerHTML = html;
+  wireHeatmapTooltip();
+}
+
+/* ─── Heatmap tooltip ─── */
+function wireHeatmapTooltip() {
+  const tip = el('hm-tip');
+  el('heatmap').addEventListener('mousemove', e => {
+    const cell = e.target.closest('.hm-name');
+    if (!cell) { tip.classList.remove('visible'); return; }
+    tip.textContent = cell.dataset.full;
+    tip.classList.add('visible');
+    const pad = 12;
+    const tw = tip.offsetWidth, th = tip.offsetHeight;
+    let x = e.clientX + pad, y = e.clientY + pad;
+    if (x + tw > window.innerWidth  - 8) x = e.clientX - tw - pad;
+    if (y + th > window.innerHeight - 8) y = e.clientY - th - pad;
+    tip.style.left = x + 'px';
+    tip.style.top  = y + 'px';
+  });
+  el('heatmap').addEventListener('mouseleave', () => tip.classList.remove('visible'));
 }
 
 /* ─── Renewable stats ─── */
@@ -948,7 +1101,12 @@ function renderAlerts() {
 
   // Publish info
   const s1 = S.lmp1?.summary, s2 = S.lmp2?.summary, bs = S.binding?.summary;
-  const z2info = S.mode === 'compare' ? ` · ${esc(S.zone2)} avg ${fmt$(s2?.average_lmp)}` : '';
+  let z2info = '';
+  if (S.mode === 'compare') z2info = ` · ${esc(S.zone2)} avg ${fmt$(s2?.average_lmp)}`;
+  else if (S.mode === 'multi') {
+    const parts = S.multiZones.map((z, i) => z ? `${esc(z)} ${fmt$(S.lmpMulti[i]?.summary?.average_lmp)}` : '').filter(Boolean);
+    z2info = ' — ' + parts.join(' · ');
+  }
   alerts.push({ color: 'green', msg: `DA data loaded for ${esc(S.date)}. ${esc(S.zone1)} avg ${fmt$(s1?.average_lmp)}${z2info}.`, time: `${ts} · severity: INFO` });
 
   // LMP spike
@@ -1052,21 +1210,52 @@ function renderMarkdown(container, raw) {
   container.innerHTML = html;
 }
 
+/* ─── LMP legend (rebuilt on every render) ─── */
+function renderLmpLegend() {
+  const legend = el('lmp-legend');
+  const swatch = (color, dash) =>
+    `<span style="display:inline-block;width:16px;height:2px;background:${dash?'none':color};${dash?`border-top:2px dashed ${color}`:''};"></span>`;
+
+  if (S.mode === 'multi') {
+    legend.innerHTML = S.multiZones
+      .map((z, i) => z
+        ? `<span style="display:flex;align-items:center;gap:5px;">${swatch(ZONE_COLORS[i])}${esc(z)}</span>`
+        : '')
+      .join('');
+  } else {
+    const z1 = S.zone1, z2 = S.zone2;
+    legend.innerHTML =
+      `<span style="display:flex;align-items:center;gap:5px;">${swatch(ZONE_COLORS[0])}${esc(z1)} LMP</span>` +
+      (S.mode === 'compare'
+        ? `<span style="display:flex;align-items:center;gap:5px;">${swatch(ZONE_COLORS[1])}${esc(z2)} LMP</span>`
+        : '') +
+      `<span style="display:flex;align-items:center;gap:5px;">${swatch('#4a5a6a', true)}System energy</span>`;
+  }
+}
+
 /* ─── Mode toggle ─── */
 function setMode(mode) {
   S.mode = mode;
   document.body.className = 'mode-' + mode;
-  el('mtab-compare').classList.toggle('active', mode === 'compare');
-  el('mtab-single').classList.toggle('active', mode === 'single');
-  // In single mode, clear zone 2 data so stale values don't linger in charts
+  ['compare','single','multi'].forEach(m =>
+    el('mtab-' + m).classList.toggle('active', m === mode)
+  );
   if (mode === 'single') {
     S.lmp2 = null;
-    if (CHARTS.lmp)  { CHARTS.lmp.data.datasets[1].hidden = true;  CHARTS.lmp.update(); }
-    if (CHARTS.cong) { CHARTS.cong.data.datasets[1].hidden = true; CHARTS.cong.update(); }
+    if (CHARTS.lmp)  { [1,2,3,4].forEach(i => { CHARTS.lmp.data.datasets[i].hidden = true; }); CHARTS.lmp.update(); }
+    if (CHARTS.cong) { [1,2,3,4].forEach(i => { CHARTS.cong.data.datasets[i].hidden = true; }); CHARTS.cong.update(); }
+    renderLmpLegend();
   } else {
-    // Re-fetch zone 2 when switching back to compare
     loadAll();
   }
+}
+
+function onMultiZoneChange() {
+  S.multiZones[1] = el('mz2-select').value;
+  S.multiZones[2] = el('mz3-select').value;
+  S.multiZones[3] = el('mz4-select').value;
+  S.multiZones[4] = el('mz5-select').value;
+  loadAll();
 }
 
 /* ─── Date navigation ─── */
@@ -1081,6 +1270,7 @@ function onDateInput()  {
 function onZoneChange() {
   S.zone1 = el('zone1-select').value;
   S.zone2 = el('zone2-select').value;
+  S.multiZones[0] = S.zone1;   // zone1-select is shared with multi slot 0
   loadAll();
 }
 
