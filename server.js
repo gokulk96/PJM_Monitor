@@ -221,12 +221,23 @@ async function handleAnalysis(req, res) {
   }
 
   const body = await readJsonBody(req);
+  const mode = body?.context?.mode ?? "single";
   const payload = shrinkForModel(body);
+
+  const modeGuide = {
+    single:  "Analyze this single-zone PJM day-ahead market snapshot.",
+    compare: "Analyze this two-zone PJM day-ahead comparison. Explain the basis spread: what drives it (congestion, topology, generation mix), how it evolves by hour, and practical trading or hedging implications. Add a Basis Analysis section.",
+    multi:   "Analyze this multi-zone PJM day-ahead snapshot. Rank zones by average LMP, identify the most congested zones, flag any significant divergence or convergence between zones, and note shared price drivers. Add a Zone Rankings section."
+  };
+
+  const extraSections = mode === "compare" ? ", Basis Analysis" : mode === "multi" ? ", Zone Rankings" : "";
+  const maxTokens    = mode === "multi" ? 2000 : mode === "compare" ? 1600 : 1200;
+
   const prompt = [
     "You are analyzing PJM day-ahead market data for a power-market operator.",
     "Use the supplied JSON only. Be concise, specific, and cite observed values.",
-    "Cover: DA LMP shape, congestion/binding constraints, transmission constraint risk, renewable output, and practical watch items.",
-    "Return markdown with sections: Executive Read, Price Drivers, Constraints, Renewables, Watch Items.",
+    modeGuide[mode] ?? modeGuide.single,
+    `Return markdown with sections: Executive Read, Price Drivers, Constraints, Renewables, Watch Items${extraSections}.`,
     "",
     JSON.stringify(payload, null, 2)
   ].join("\n");
@@ -250,7 +261,7 @@ async function handleAnalysis(req, res) {
           { role: "user", content: prompt }
         ],
         temperature: 0.2,
-        max_tokens: 1200
+        max_tokens: maxTokens
       })
     });
     const json = await response.json().catch(() => ({}));
@@ -398,31 +409,76 @@ function summarizeRenewables(rows) {
 }
 
 function shrinkForModel(body) {
-  return {
-    run: {
-      zone: body?.context?.zone,
-      area: body?.context?.area,
-      date: body?.context?.date
-    },
-    lmpSummary: body?.lmp?.summary,
-    lmpHourly: (body?.lmp?.rows || []).map((row) => ({
-      hour: row.datetime_beginning_ept,
-      lmp: row.total_lmp_da,
-      energy: row.system_energy_price_da,
-      congestion: row.congestion_price_da,
-      loss: row.marginal_loss_price_da
-    })),
+  const mode = body?.context?.mode ?? "single";
+
+  function lmpRows(rows = []) {
+    return rows.map((r) => ({
+      hour: r.datetime_beginning_ept,
+      lmp: r.total_lmp_da,
+      energy: r.system_energy_price_da,
+      congestion: r.congestion_price_da,
+      loss: r.marginal_loss_price_da
+    }));
+  }
+
+  const shared = {
+    mode,
+    date: body?.context?.date,
+    area: body?.context?.area,
     bindingSummary: body?.binding?.summary,
     topBinding: (body?.binding?.rows || []).slice(0, 25),
     transmissionSummary: body?.transmission?.summary,
-    transmissionSample: (body?.transmission?.rows || []).slice(0, 25),
+    transmissionSample: (body?.transmission?.rows || []).slice(0, 20),
     renewablesSummary: body?.renewables?.summary,
-    renewableHourly: (body?.renewables?.rows || []).map((row) => ({
-      hour: row.datetime_beginning_ept,
-      solar: row.solar_generation_mw,
-      wind: row.wind_generation_mw,
-      total: row.total_renewable_mw
+    renewableHourly: (body?.renewables?.rows || []).map((r) => ({
+      hour: r.datetime_beginning_ept,
+      solar: r.solar_generation_mw,
+      wind: r.wind_generation_mw,
+      total: r.total_renewable_mw
     }))
+  };
+
+  if (mode === "compare") {
+    const rows1 = body?.lmp1?.rows || [];
+    const rows2 = body?.lmp2?.rows || [];
+    // Build hourly spread alongside the two LMP series
+    const spreadHourly = rows1.map((r, i) => ({
+      hour: r.datetime_beginning_ept,
+      spread: (r.total_lmp_da != null && rows2[i]?.total_lmp_da != null)
+        ? Math.round((r.total_lmp_da - rows2[i].total_lmp_da) * 100) / 100
+        : null
+    }));
+    return {
+      ...shared,
+      zone1: body?.context?.zone1,
+      zone2: body?.context?.zone2,
+      lmp1Summary: body?.lmp1?.summary,
+      lmp1Hourly: lmpRows(rows1),
+      lmp2Summary: body?.lmp2?.summary,
+      lmp2Hourly: lmpRows(rows2),
+      spreadHourly
+    };
+  }
+
+  if (mode === "multi") {
+    return {
+      ...shared,
+      zones: body?.context?.zones,
+      // One entry per active zone — summary + full 24-h hourly
+      zoneData: (body?.lmpZones || []).map((z) => ({
+        zone: z.zone,
+        summary: z.summary,
+        hourly: lmpRows(z.rows || [])
+      }))
+    };
+  }
+
+  // single (default)
+  return {
+    ...shared,
+    zone: body?.context?.zone,
+    lmpSummary: body?.lmp?.summary,
+    lmpHourly: lmpRows(body?.lmp?.rows || [])
   };
 }
 
