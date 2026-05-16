@@ -88,16 +88,7 @@
   .brand-title { font-size: 13.5px; font-weight: 500; letter-spacing: -0.005em; }
   .brand-sub { font-family: var(--mono); font-size: 10.5px; color: var(--text-mute); letter-spacing: 0.01em; }
 
-  .header-mid { display: flex; align-items: center; gap: 8px; }
-  .nav-pill {
-    font-size: 12.5px; color: var(--text-mute);
-    padding: 6px 12px; border-radius: 999px;
-    transition: color .15s, background .15s;
-  }
-  .nav-pill:hover { color: var(--text-soft); background: var(--surface-1); }
-  .nav-pill.active { color: var(--text); background: var(--surface-2); }
-
-  .header-right { display: flex; align-items: center; gap: 14px; }
+.header-right { display: flex; align-items: center; gap: 14px; }
 
   .live-pill {
     display: inline-flex; align-items: center; gap: 8px;
@@ -446,7 +437,6 @@
     main { padding: 18px 16px 40px; }
     header { padding: 0 16px; }
     .kpi-row, body.mode-single .kpi-row { grid-template-columns: 1fr 1fr; }
-    .header-mid { display: none; }
     .toolbar { flex-direction: column; align-items: flex-start; }
   }
 </style>
@@ -462,14 +452,7 @@
     </div>
   </div>
 
-  <nav class="header-mid">
-    <a class="nav-pill active">Dashboard</a>
-    <a class="nav-pill">Constraints</a>
-    <a class="nav-pill">Zones</a>
-    <a class="nav-pill">Generation</a>
-  </nav>
-
-  <div class="header-right">
+<div class="header-right">
     <div class="live-pill">
       <span id="status-dot" class="dot loading"></span>
       <span id="status-text">Connecting</span>
