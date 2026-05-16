@@ -378,7 +378,8 @@ async function handleAnalysis(req, res) {
 
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), PJM_TIMEOUT_SECONDS * 1000);
-  try {
+
+  async function callOpenRouter(tokens) {
     const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
       method: "POST",
       signal: controller.signal,
@@ -395,12 +396,29 @@ async function handleAnalysis(req, res) {
           { role: "user", content: prompt }
         ],
         temperature: 0.2,
-        max_tokens: maxTokens
+        max_tokens: tokens
       })
     });
     const json = await response.json().catch(() => ({}));
+    return { response, json };
+  }
+
+  try {
+    let { response, json } = await callOpenRouter(maxTokens);
+
+    // If OpenRouter says we can't afford the requested tokens, parse the limit and retry once.
     if (!response.ok) {
-      const msg = json?.error?.message || json?.message || json?.error || `HTTP ${response.status}`;
+      const msg = json?.error?.message || json?.message || String(json?.error ?? `HTTP ${response.status}`);
+      const affordMatch = /can only afford (\d+)/i.exec(msg);
+      if (affordMatch) {
+        const affordable = Math.max(200, Number(affordMatch[1]) - 10);
+        console.log(`OpenRouter credit limit — retrying with ${affordable} tokens (was ${maxTokens})`);
+        ({ response, json } = await callOpenRouter(affordable));
+      }
+    }
+
+    if (!response.ok) {
+      const msg = json?.error?.message || json?.message || String(json?.error ?? `HTTP ${response.status}`);
       console.error(`OpenRouter error ${response.status}:`, JSON.stringify(json).slice(0, 400));
       sendJson(res, response.status, { error: `OpenRouter: ${msg}`, detail: json });
       return;
