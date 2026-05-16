@@ -877,9 +877,52 @@ function formatDay(dateStr) {
 
 const HOURS = Array.from({ length: 24 }, (_, i) => 'H' + i);
 
+/* ─── Auth ─── */
+let _token = sessionStorage.getItem('pjm_token') || '';
+
+function getToken() { return _token; }
+
+function promptToken(reason = '') {
+  return new Promise(resolve => {
+    const overlay = document.createElement('div');
+    overlay.style.cssText = 'position:fixed;inset:0;z-index:9999;display:flex;align-items:center;justify-content:center;background:rgba(10,11,13,0.85);backdrop-filter:blur(8px);';
+    overlay.innerHTML = `
+      <div style="background:var(--surface-2);border:1px solid var(--line-strong);border-radius:var(--radius-lg);padding:28px 32px;width:340px;display:flex;flex-direction:column;gap:16px;box-shadow:0 24px 48px rgba(0,0,0,0.6);">
+        <div>
+          <div style="font-size:14px;font-weight:500;margin-bottom:4px;">Access required</div>
+          <div style="font-family:var(--mono);font-size:11px;color:var(--text-mute);">${reason || 'Enter the access token to continue.'}</div>
+        </div>
+        <input id="token-input" type="password" placeholder="Access token" autocomplete="current-password"
+          style="font-family:var(--mono);font-size:12px;background:var(--surface-1);border:1px solid var(--line-strong);border-radius:var(--radius);padding:9px 12px;color:var(--text);width:100%;outline:none;">
+        <button id="token-submit" style="font-family:var(--mono);font-size:12px;background:var(--blue-bg);border:1px solid oklch(72% 0.14 235 / 0.3);border-radius:var(--radius);padding:9px;color:var(--blue-2);cursor:pointer;">
+          Unlock
+        </button>
+      </div>`;
+    document.body.appendChild(overlay);
+    const input = overlay.querySelector('#token-input');
+    const btn   = overlay.querySelector('#token-submit');
+    const submit = () => {
+      const val = input.value.trim();
+      if (!val) return;
+      _token = val;
+      sessionStorage.setItem('pjm_token', val);
+      overlay.remove();
+      resolve(val);
+    };
+    btn.addEventListener('click', submit);
+    input.addEventListener('keydown', e => { if (e.key === 'Enter') submit(); });
+    input.focus();
+  });
+}
+
 /* ─── API ─── */
 async function apiFetch(path) {
-  const r = await fetch(path);
+  const headers = _token ? { Authorization: `Bearer ${_token}` } : {};
+  let r = await fetch(path, { headers });
+  if (r.status === 401) {
+    await promptToken('Token rejected or required. Enter your access token.');
+    r = await fetch(path, { headers: { Authorization: `Bearer ${_token}` } });
+  }
   if (!r.ok) throw new Error(`HTTP ${r.status}`);
   return r.json();
 }
@@ -1448,7 +1491,9 @@ async function triggerAnalysis() {
     }
 
     const r = await fetch('/api/analysis', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...(_token ? { Authorization: `Bearer ${_token}` } : {}) },
+      body: JSON.stringify(payload)
     });
     const json = await r.json();
     if (json.error) throw new Error(String(json.error));
