@@ -223,6 +223,17 @@
 
   .hm-cell:hover { opacity: 0.7; cursor: default; }
 
+  /* ── Heatmap row-label tooltip ── */
+  #hm-tip {
+    position: fixed; z-index: 500; pointer-events: none;
+    display: none;
+    font-family: var(--mono); font-size: 11px; color: var(--text);
+    background: var(--bg3); border: 1px solid var(--border2);
+    padding: 5px 10px; white-space: nowrap;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.5);
+  }
+  #hm-tip.visible { display: block; }
+
   .empty-state {
     font-family: var(--mono); font-size: 11px; color: var(--text3);
     padding: 24px; text-align: center;
@@ -520,6 +531,8 @@
   <div class="footer-txt">PJM MARKET MONITOR · DA SURVEILLANCE · DATA: PJM DATA MINER 2</div>
   <div class="footer-txt" id="footer-ts">Last refresh: --</div>
 </footer>
+
+<div id="hm-tip"></div>
 
 <script>
 /* ─── State ─── */
@@ -913,7 +926,7 @@ function renderHeatmap() {
 
   for (const c of constraints) {
     const label = trunc(c.name, 18);
-    html += `<div style="font-size:9px;color:#7a8a9a;padding:4px 4px 4px 0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;align-self:center;" title="${esc(c.name)}">${esc(label)}</div>`;
+    html += `<div class="hm-name" data-full="${esc(c.name)}" style="font-size:9px;color:#7a8a9a;padding:4px 4px 4px 0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;align-self:center;cursor:default;">${esc(label)}</div>`;
     for (let h = 0; h < 24; h++) {
       const v = c.data[h] ?? 0;
       const t = maxVal > 0 ? Math.min(1, v / maxVal) : 0;
@@ -925,6 +938,26 @@ function renderHeatmap() {
   }
   html += '</div>';
   el('heatmap').innerHTML = html;
+  wireHeatmapTooltip();
+}
+
+/* ─── Heatmap tooltip ─── */
+function wireHeatmapTooltip() {
+  const tip = el('hm-tip');
+  el('heatmap').addEventListener('mousemove', e => {
+    const cell = e.target.closest('.hm-name');
+    if (!cell) { tip.classList.remove('visible'); return; }
+    tip.textContent = cell.dataset.full;
+    tip.classList.add('visible');
+    const pad = 12;
+    const tw = tip.offsetWidth, th = tip.offsetHeight;
+    let x = e.clientX + pad, y = e.clientY + pad;
+    if (x + tw > window.innerWidth  - 8) x = e.clientX - tw - pad;
+    if (y + th > window.innerHeight - 8) y = e.clientY - th - pad;
+    tip.style.left = x + 'px';
+    tip.style.top  = y + 'px';
+  });
+  el('heatmap').addEventListener('mouseleave', () => tip.classList.remove('visible'));
 }
 
 /* ─── Renewable stats ─── */
