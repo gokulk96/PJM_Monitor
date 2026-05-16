@@ -52,13 +52,86 @@
   html { background: var(--bg); color: var(--text); font-family: var(--sans); font-size: 14px; line-height: 1.5; }
   body { min-height: 100vh; overflow-x: hidden; font-feature-settings: 'ss01','cv11'; }
 
-  body::before {
-    content: '';
-    position: fixed; inset: 0;
-    background:
-      radial-gradient(900px 600px at 12% -10%, oklch(50% 0.06 235 / 0.12), transparent 60%),
-      radial-gradient(900px 600px at 100% 0%, oklch(50% 0.05 295 / 0.08), transparent 60%);
+  /* Aurora gradient orbs */
+  .aurora {
+    position: fixed; inset: -10%;
     pointer-events: none; z-index: 0;
+    overflow: hidden;
+    filter: blur(80px) saturate(140%);
+    opacity: 0.55;
+  }
+  .aurora-orb {
+    position: absolute; border-radius: 50%;
+    mix-blend-mode: screen; will-change: transform;
+  }
+  .aurora-orb.o1 {
+    width: 55vw; height: 55vw;
+    background: radial-gradient(circle, oklch(72% 0.18 235) 0%, transparent 65%);
+    top: -10%; left: -10%;
+    animation: drift1 28s ease-in-out infinite alternate;
+  }
+  .aurora-orb.o2 {
+    width: 60vw; height: 60vw;
+    background: radial-gradient(circle, oklch(70% 0.20 295) 0%, transparent 65%);
+    top: 30%; right: -15%;
+    animation: drift2 34s ease-in-out infinite alternate;
+  }
+  .aurora-orb.o3 {
+    width: 50vw; height: 50vw;
+    background: radial-gradient(circle, oklch(74% 0.18 195) 0%, transparent 65%);
+    bottom: -20%; left: 20%;
+    animation: drift3 40s ease-in-out infinite alternate;
+  }
+  .aurora-orb.o4 {
+    width: 45vw; height: 45vw;
+    background: radial-gradient(circle, oklch(72% 0.18 330) 0%, transparent 65%);
+    top: 10%; left: 35%;
+    animation: drift4 46s ease-in-out infinite alternate;
+  }
+  .aurora-orb.o5 {
+    width: 40vw; height: 40vw;
+    background: radial-gradient(circle, oklch(72% 0.16 80) 0%, transparent 65%);
+    bottom: 10%; right: 25%;
+    animation: drift5 38s ease-in-out infinite alternate;
+    opacity: 0.55;
+  }
+  @keyframes drift1 {
+    0%   { transform: translate(0%, 0%) scale(1); }
+    50%  { transform: translate(30%, 25%) scale(1.15); }
+    100% { transform: translate(15%, 40%) scale(0.95); }
+  }
+  @keyframes drift2 {
+    0%   { transform: translate(0%, 0%) scale(1); }
+    50%  { transform: translate(-25%, 20%) scale(1.1); }
+    100% { transform: translate(-40%, -15%) scale(1.05); }
+  }
+  @keyframes drift3 {
+    0%   { transform: translate(0%, 0%) scale(1); }
+    50%  { transform: translate(20%, -25%) scale(1.2); }
+    100% { transform: translate(40%, -10%) scale(0.95); }
+  }
+  @keyframes drift4 {
+    0%   { transform: translate(0%, 0%) scale(1); }
+    50%  { transform: translate(-30%, 35%) scale(1.1); }
+    100% { transform: translate(20%, 25%) scale(1.0); }
+  }
+  @keyframes drift5 {
+    0%   { transform: translate(0%, 0%) scale(1); }
+    50%  { transform: translate(-20%, -25%) scale(1.15); }
+    100% { transform: translate(-35%, -10%) scale(0.95); }
+  }
+  @media (prefers-reduced-motion: reduce) { .aurora-orb { animation: none !important; } }
+
+  /* Ambient gradient + vignette */
+  body::before {
+    content: ''; position: fixed; inset: 0;
+    background: radial-gradient(1200px 800px at 50% 130%, oklch(50% 0.08 260 / 0.10), transparent 60%);
+    pointer-events: none; z-index: 1;
+  }
+  body::after {
+    content: ''; position: fixed; inset: 0;
+    background: radial-gradient(ellipse 90% 80% at center, transparent 35%, rgba(10,11,13,0.45) 100%);
+    pointer-events: none; z-index: 1;
   }
 
   ::selection { background: var(--blue-bg); color: var(--text); }
@@ -70,9 +143,9 @@
     position: sticky; top: 0; z-index: 50;
     display: flex; align-items: center; justify-content: space-between;
     padding: 0 28px; height: 56px;
-    background: rgba(10,11,13,0.78);
-    backdrop-filter: blur(14px) saturate(140%);
-    -webkit-backdrop-filter: blur(14px) saturate(140%);
+    background: rgba(10,11,13,0.65);
+    backdrop-filter: blur(18px) saturate(140%);
+    -webkit-backdrop-filter: blur(18px) saturate(140%);
     border-bottom: 1px solid var(--line);
   }
   .brand { display: flex; align-items: center; gap: 12px; }
@@ -118,7 +191,8 @@
   .icon-btn svg { width: 15px; height: 15px; }
 
   /* ─── Layout ─── */
-  main { position: relative; z-index: 1; padding: 24px 28px 60px; max-width: 1640px; margin: 0 auto; }
+  main { position: relative; z-index: 2; padding: 24px 28px 60px; max-width: 1640px; margin: 0 auto; }
+  footer { position: relative; z-index: 2; }
 
   /* ─── Toolbar ─── */
   .toolbar {
@@ -192,12 +266,15 @@
   .kpi-row { display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; margin-bottom: 22px; }
   .kpi {
     position: relative; overflow: hidden;
-    background: linear-gradient(180deg, oklch(20% 0.005 250 / 0.6) 0%, transparent 80%), var(--surface-1);
+    background: linear-gradient(180deg, rgba(255,255,255,0.04) 0%, transparent 80%), rgba(19,21,25,0.78);
+    backdrop-filter: blur(14px) saturate(130%);
+    -webkit-backdrop-filter: blur(14px) saturate(130%);
     border: 1px solid var(--line);
     border-radius: var(--radius-lg);
     padding: 14px 16px 12px;
     display: flex; flex-direction: column; gap: 8px;
     transition: border-color .2s;
+    box-shadow: 0 1px 0 rgba(255,255,255,0.03) inset, 0 20px 40px -20px rgba(0,0,0,0.5);
   }
   .kpi:hover { border-color: var(--line-strong); }
   .kpi-head { display: flex; align-items: center; justify-content: space-between; }
@@ -227,9 +304,13 @@
 
   /* ─── Panel ─── */
   .panel {
-    background: var(--surface-1); border: 1px solid var(--line);
+    background: rgba(19,21,25,0.78);
+    backdrop-filter: blur(14px) saturate(130%);
+    -webkit-backdrop-filter: blur(14px) saturate(130%);
+    border: 1px solid var(--line);
     border-radius: var(--radius-lg);
     display: flex; flex-direction: column; overflow: hidden;
+    box-shadow: 0 1px 0 rgba(255,255,255,0.03) inset, 0 20px 40px -20px rgba(0,0,0,0.5);
   }
   .panel-head {
     display: flex; align-items: center; justify-content: space-between;
@@ -443,6 +524,14 @@
 </head>
 <body class="mode-compare">
 
+<div class="aurora" aria-hidden="true">
+  <div class="aurora-orb o1"></div>
+  <div class="aurora-orb o2"></div>
+  <div class="aurora-orb o3"></div>
+  <div class="aurora-orb o4"></div>
+  <div class="aurora-orb o5"></div>
+</div>
+
 <header>
   <div class="brand">
     <div class="brand-mark">PJM</div>
@@ -460,9 +549,6 @@
     <span id="clock">--:--:--</span>
     <button id="refresh-btn" class="icon-btn" title="Refresh data" disabled>
       <svg viewBox="0 0 16 16" fill="none"><path d="M2 8a6 6 0 0 1 10.5-3.97V3M14 8a6 6 0 0 1-10.5 3.97V13" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/><path d="M12.5 1.5v2.5h-2.5M3.5 14.5V12h2.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
-    </button>
-    <button class="icon-btn" title="Export">
-      <svg viewBox="0 0 16 16" fill="none"><path d="M8 2v8m0 0L5 7m3 3l3-3M2.5 11.5V13a1 1 0 0 0 1 1h9a1 1 0 0 0 1-1v-1.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
     </button>
   </div>
 </header>
