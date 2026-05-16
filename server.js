@@ -16,7 +16,7 @@ const PJM_API_KEY = process.env.PJM_API_KEY || "";
 const PJM_AUTH_MODE = (process.env.PJM_AUTH_MODE || "header").toLowerCase();
 const PJM_TIMEOUT_SECONDS = Number(process.env.PJM_TIMEOUT_SECONDS || 30);
 const PJM_RATE_LIMIT_PER_MINUTE = Number(process.env.PJM_RATE_LIMIT_PER_MINUTE || 6);
-const OPENROUTER_MODEL = process.env.OPENROUTER_MODEL || "google/gemini-2.5-flash";
+const OPENROUTER_MODEL = process.env.OPENROUTER_MODEL || "google/gemini-3.1-flash-lite";
 
 const ZONE_PNODES = {
   "PJM-RTO": 1,
