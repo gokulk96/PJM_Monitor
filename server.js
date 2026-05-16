@@ -48,8 +48,23 @@ const RENEWABLE_AREAS = ["RTO", "MIDATL", "RFC", "SOUTH", "WEST", "OTHER"];
 const cache = new Map();
 const rateState = { windowStart: Date.now(), count: 0 };
 
+// Load pnodes.csv at startup for autocomplete search
+let pnodesData = [];
+try {
+  const csvText = readFileSync(path.join(__dirname, "pnodes.csv"), "utf8");
+  const lines = csvText.split(/\r?\n/).slice(1);
+  pnodesData = lines.filter(Boolean).map(line => {
+    const cols = line.split(",");
+    return { id: (cols[0] || "").trim(), name: (cols[1] || "").trim(), type: (cols[2] || "").trim(), zone: (cols[4] || "").trim(), voltage: (cols[5] || "").trim() };
+  }).filter(p => p.id && p.name);
+  console.log(`Loaded ${pnodesData.length} pnodes from pnodes.csv`);
+} catch (e) {
+  console.warn("pnodes.csv not found:", e.message);
+}
+
 const routes = {
   "/api/pjm/status": handleStatus,
+  "/api/pjm/pnodes": handlePnodes,
   "/api/pjm/da-lmp/zone": handleZoneLmp,
   "/api/pjm/constraints/transmission": handleTransmissionConstraints,
   "/api/pjm/constraints/binding": handleBindingConstraints,
@@ -94,6 +109,27 @@ async function handleStatus(_req, res) {
     zones: Object.keys(ZONE_PNODES),
     renewableAreas: RENEWABLE_AREAS
   });
+}
+
+async function handlePnodes(_req, res, url) {
+  const q = (url.searchParams.get("q") || "").trim();
+  if (!q) { sendJson(res, 200, { results: [] }); return; }
+
+  let results;
+  if (/^\d+$/.test(q)) {
+    results = pnodesData.filter(p => p.id.startsWith(q));
+    results.sort((a, b) => (a.id === q ? -1 : b.id === q ? 1 : a.id.length - b.id.length));
+  } else {
+    const lower = q.toLowerCase();
+    const sw = [], inc = [];
+    for (const p of pnodesData) {
+      const nl = p.name.toLowerCase();
+      if (nl.startsWith(lower)) sw.push(p);
+      else if (nl.includes(lower)) inc.push(p);
+    }
+    results = [...sw, ...inc];
+  }
+  sendJson(res, 200, { results: results.slice(0, 20).map(p => ({ id: p.id, name: p.name, zone: p.zone, voltage: p.voltage, type: p.type })) });
 }
 
 async function handleZoneLmp(_req, res, url) {

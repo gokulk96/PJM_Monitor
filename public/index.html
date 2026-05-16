@@ -513,24 +513,39 @@
   body:not(.mode-custom) .custom-only { display: none !important; }
   body.mode-custom #zone-select-group { display: none !important; }
 
-  /* PNode input */
-  .pnode-wrap {
-    display: inline-flex; align-items: stretch;
-    background: var(--surface-1); border: 1px solid var(--line); border-radius: 6px; overflow: hidden;
+  /* PNode autocomplete */
+  .ac-wrap {
+    position: relative; display: inline-flex; align-items: stretch;
+    background: var(--surface-1); border: 1px solid var(--line); border-radius: 6px; overflow: visible;
   }
-  .pnode-input {
+  .ac-input {
     font-family: var(--mono); font-size: 11.5px; color: var(--text-soft);
-    background: transparent; border: none; border-right: 1px solid var(--line);
-    padding: 6px 10px; width: 140px; outline: none;
+    background: transparent; border: none;
+    padding: 6px 10px; width: 200px; outline: none; border-radius: 6px;
   }
-  .pnode-input:focus { background: var(--surface-2); color: var(--text); }
-  .pnode-input::placeholder { color: var(--text-dim); }
-  .pnode-go {
-    font-family: var(--mono); font-size: 11px; letter-spacing: 0.02em;
-    background: transparent; border: none; padding: 0 12px;
-    color: var(--blue-2); cursor: pointer; transition: all .12s;
+  .ac-input:focus { background: var(--surface-2); color: var(--text); }
+  .ac-input::placeholder { color: var(--text-dim); }
+  .ac-dropdown {
+    position: absolute; top: calc(100% + 4px); left: 0;
+    min-width: 320px; max-height: 260px; overflow-y: auto;
+    background: var(--surface-2); border: 1px solid var(--line-strong);
+    border-radius: var(--radius); z-index: 200;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.5);
   }
-  .pnode-go:hover { background: var(--surface-2); color: var(--text); }
+  .ac-dropdown[hidden] { display: none; }
+  .ac-item {
+    display: flex; align-items: baseline; justify-content: space-between;
+    gap: 10px; padding: 8px 12px; cursor: pointer; border-bottom: 1px solid var(--line);
+    transition: background .1s;
+  }
+  .ac-item:last-child { border-bottom: none; }
+  .ac-item:hover, .ac-item-active { background: var(--surface-3); }
+  .ac-name { font-family: var(--mono); font-size: 11.5px; color: var(--text); }
+  .ac-meta { font-family: var(--mono); font-size: 10px; color: var(--text-mute); white-space: nowrap; }
+
+  /* Show spread panel + 2-col grid in custom mode when a compare zone is selected */
+  body.mode-custom.has-compare .spread-panel { display: flex !important; }
+  body.mode-custom.has-compare .row.lmp { grid-template-columns: minmax(0, 2.4fr) minmax(0, 1fr); }
 
   /* Responsive */
   @media (max-width: 1200px) {
@@ -610,10 +625,10 @@
       </div>
 
       <!-- Custom PNode controls -->
-      <span class="selector-label custom-only">PNode ID</span>
-      <div class="pnode-wrap custom-only">
-        <input id="pnode-input" class="pnode-input" type="text" placeholder="e.g. 34964545" inputmode="numeric">
-        <button id="pnode-go" class="pnode-go">Go</button>
+      <span class="selector-label custom-only">PNode</span>
+      <div class="ac-wrap custom-only" id="pnode-ac-wrap">
+        <input id="pnode-input" class="ac-input" type="text" placeholder="Name or ID…" autocomplete="off" spellcheck="false">
+        <div id="pnode-dropdown" class="ac-dropdown" hidden></div>
       </div>
       <span class="selector-label custom-only" style="opacity:0.5;">vs</span>
       <select id="cz1-select" class="zone-select custom-only"></select>
@@ -699,7 +714,7 @@
       </div>
     </section>
 
-    <section class="panel compare-only spread-card">
+    <section class="panel compare-only spread-card spread-panel">
       <div class="panel-head">
         <div class="panel-head-left">
           <span class="panel-title" id="spread-chart-title">Basis Spread</span>
@@ -877,6 +892,7 @@ const S = {
   loading: false,
   // custom mode
   pnodeId: '',
+  pnodeName: '',
   customCompare: ['', ''],
   lmpCustom: null,
   lmpCustomZones: [null, null],
@@ -1116,7 +1132,10 @@ function render() {
     el('cong-lbl-z2').textContent = z2;
   }
 
-  el('spread-chart-title').textContent = `${z1}–${z2} Basis Spread`;
+  updateHasCompare();
+  el('spread-chart-title').textContent = custom
+    ? `${trunc(pnodeName, 18)}–${S.customCompare[0] || '?'} Spread`
+    : `${z1}–${z2} Basis Spread`;
   el('kpi-z1-label').textContent       = multi ? `${S.multiZones[0] || 'Z1'} Avg LMP` : `${z1} Avg LMP`;
   el('kpi-z2-label').textContent       = `${z2} Avg LMP`;
   el('kpi-spread-label').textContent   = `${z1}–${z2} Spread`;
@@ -1298,6 +1317,24 @@ function renderCustomKpis() {
   const row = el('kpi-row-multi');
   row.style.gridTemplateColumns = `repeat(${1 + activeCompare.length + 2}, 1fr)`;
   row.innerHTML = pnodeCard + zoneCards + bindingCard + shadowCard;
+
+  // Populate spread panel when comparing
+  if (activeCompare.length > 0 && s0) {
+    const cz1 = activeCompare[0];
+    const cz1s = cz1?.data?.summary;
+    if (cz1s) {
+      const spread = round2((s0.average_lmp ?? 0) - (cz1s.average_lmp ?? 0));
+      const absSpread = Math.abs(spread);
+      const label = absSpread > 8 ? 'HIGH' : absSpread > 4 ? 'MOD' : 'LOW';
+      const cls   = absSpread > 8 ? 'down warn' : absSpread > 4 ? 'warn' : '';
+      el('spread-display').textContent  = fmt$(spread);
+      el('spread-tag').textContent      = label;
+      el('spread-tag').className        = 'kpi-delta ' + cls;
+      el('spread-deltatag').textContent = '24h avg';
+      el('spread-desc').innerHTML       = `<b>${esc(trunc(pnodeName, 22))}</b> vs <b>${esc(cz1.zone)}</b> basis. ${spread > 0 ? esc(trunc(pnodeName, 14)) + ' trades at a premium.' : esc(cz1.zone) + ' trades at a premium.'}`;
+    }
+  }
+  renderBindingKpis();
 }
 
 /* ─── Charts ─── */
@@ -1398,6 +1435,22 @@ function updateCharts() {
     c.cong.data.datasets[2].data = h2.map(r => r?.congestion_price_da ?? null); c.cong.data.datasets[2].label = (S.customCompare[1] || 'Z3') + ' cong'; c.cong.data.datasets[2].hidden = !S.customCompare[1];
     [3, 4].forEach(i => { c.cong.data.datasets[i].hidden = true; c.cong.data.datasets[i].data = []; });
     c.cong.update();
+
+    // Spread chart: pnode vs first compare zone
+    if (S.customCompare[0] && S.lmpCustomZones[0]) {
+      const spreadData = h0.map((r, i) => {
+        const z = h1[i];
+        return (r?.total_lmp_da != null && z?.total_lmp_da != null) ? round2(r.total_lmp_da - z.total_lmp_da) : null;
+      });
+      c.spread.data.datasets[0].data = spreadData;
+      c.spread.data.datasets[0].backgroundColor = spreadData.map(v =>
+        v == null ? 'transparent'
+          : Math.abs(v) > 8 ? 'oklch(80% 0.14 75 / 0.85)'
+          : Math.abs(v) > 4 ? 'oklch(80% 0.14 75 / 0.5)'
+          : 'oklch(80% 0.14 75 / 0.25)'
+      );
+      c.spread.update();
+    }
   } else if (S.mode === 'multi') {
     S.multiZones.forEach((zone, i) => {
       const hrs = rowsByHour(S.lmpMulti[i]);
@@ -1744,7 +1797,7 @@ function setMode(mode) {
     if (CHARTS.cong) { [1,2,3,4].forEach(i => { CHARTS.cong.data.datasets[i].hidden = true; }); CHARTS.cong.update(); }
     renderLmpLegend();
   } else if (mode === 'custom') {
-    if (S.pnodeId) loadAll(); else { render(); setStatus('live', 'Enter a PNode ID'); }
+    if (S.pnodeId) loadAll(); else { updateHasCompare(); render(); setStatus('live', 'Enter a PNode name or ID'); }
   } else {
     loadAll();
   }
@@ -1760,8 +1813,13 @@ el('zone2-select').addEventListener('change', onZoneChange);
 ['mz2-select','mz3-select','mz4-select','mz5-select'].forEach(id => el(id).addEventListener('change', onMultiZoneChange));
 el('cz1-select').addEventListener('change', onCustomZoneChange);
 el('cz2-select').addEventListener('change', onCustomZoneChange);
-el('pnode-go').addEventListener('click', loadCustomPnode);
-el('pnode-input').addEventListener('keydown', e => { if (e.key === 'Enter') loadCustomPnode(); });
+el('pnode-input').addEventListener('input', acOnInput);
+el('pnode-input').addEventListener('keydown', acOnKeydown);
+el('pnode-input').addEventListener('blur', () => setTimeout(acHide, 160));
+el('pnode-dropdown').addEventListener('mousedown', e => {
+  const item = e.target.closest('.ac-item');
+  if (item) acSelect(Number(item.dataset.idx));
+});
 el('area-select').addEventListener('change', onAreaChange);
 el('date-input').addEventListener('change', onDateInput);
 el('prev-day').addEventListener('click', prevDay);
@@ -1770,16 +1828,73 @@ el('today-btn').addEventListener('click', goToday);
 el('refresh-btn').addEventListener('click', () => loadAll());
 el('btn-analysis').addEventListener('click', triggerAnalysis);
 
-function loadCustomPnode() {
-  const val = el('pnode-input').value.trim().replace(/\D/g, '');
-  if (!val) return;
-  S.pnodeId = val;
+/* ─── PNode Autocomplete ─── */
+let _acTimer = null, _acItems = [], _acIdx = -1;
+
+function acOnInput() {
+  const q = el('pnode-input').value.trim();
+  clearTimeout(_acTimer);
+  if (!q) { acHide(); return; }
+  _acTimer = setTimeout(() => acFetch(q), 220);
+}
+
+async function acFetch(q) {
+  try {
+    const data = await apiFetch(`/api/pjm/pnodes?q=${encodeURIComponent(q)}`);
+    _acItems = data.results || [];
+    acRender();
+  } catch {}
+}
+
+function acRender() {
+  const drop = el('pnode-dropdown');
+  if (!_acItems.length) { acHide(); return; }
+  drop.innerHTML = _acItems.map((item, i) => `
+    <div class="ac-item" data-idx="${i}">
+      <span class="ac-name">${esc(item.name)}</span>
+      <span class="ac-meta">${[item.zone, item.voltage].filter(Boolean).join(' · ')}</span>
+    </div>`).join('');
+  drop.removeAttribute('hidden');
+  _acIdx = -1;
+}
+
+function acHide() {
+  const drop = el('pnode-dropdown');
+  drop.setAttribute('hidden', '');
+  drop.innerHTML = '';
+  _acIdx = -1;
+}
+
+function acSelect(idx) {
+  const item = _acItems[idx];
+  if (!item) return;
+  el('pnode-input').value = item.name;
+  acHide();
+  S.pnodeId = item.id;
+  S.pnodeName = item.name;
   loadAll();
+}
+
+function acOnKeydown(e) {
+  const drop = el('pnode-dropdown');
+  if (drop.hasAttribute('hidden')) return;
+  if (e.key === 'ArrowDown') { e.preventDefault(); _acIdx = Math.min(_acIdx + 1, _acItems.length - 1); acHighlight(); }
+  else if (e.key === 'ArrowUp')  { e.preventDefault(); _acIdx = Math.max(_acIdx - 1, 0); acHighlight(); }
+  else if (e.key === 'Enter')    { e.preventDefault(); if (_acIdx >= 0) acSelect(_acIdx); else if (_acItems.length === 1) acSelect(0); }
+  else if (e.key === 'Escape')   { acHide(); }
+}
+
+function acHighlight() {
+  el('pnode-dropdown').querySelectorAll('.ac-item').forEach((el, i) => el.classList.toggle('ac-item-active', i === _acIdx));
 }
 function onCustomZoneChange() {
   S.customCompare[0] = el('cz1-select').value;
   S.customCompare[1] = el('cz2-select').value;
-  if (S.pnodeId) loadAll();
+  if (S.pnodeId) loadAll(); else updateHasCompare();
+}
+
+function updateHasCompare() {
+  document.body.classList.toggle('has-compare', S.mode === 'custom' && Boolean(S.customCompare[0]));
 }
 function onZoneChange() {
   S.zone1 = el('zone1-select').value;
