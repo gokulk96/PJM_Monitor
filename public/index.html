@@ -1161,13 +1161,29 @@ async function triggerAnalysis() {
   el('analysis-content').innerHTML = `<div class="empty-state" style="line-height:1.9;"><span class="spinner"></span> Generating analysis…</div>`;
 
   try {
-    const payload = {
-      context: { zone: S.zone1, area: S.area, date: S.date },
-      lmp: S.lmp1,
-      binding: S.binding,
-      transmission: S.transmission,
-      renewables: S.renewables
-    };
+    const common = { binding: S.binding, transmission: S.transmission, renewables: S.renewables };
+    let payload;
+    if (S.mode === 'compare') {
+      payload = {
+        context: { mode: 'compare', zone1: S.zone1, zone2: S.zone2, area: S.area, date: S.date },
+        lmp1: S.lmp1, lmp2: S.lmp2,
+        ...common
+      };
+    } else if (S.mode === 'multi') {
+      payload = {
+        context: { mode: 'multi', zones: S.multiZones.filter(Boolean), area: S.area, date: S.date },
+        lmpZones: S.multiZones
+          .map((z, i) => z ? { zone: z, summary: S.lmpMulti[i]?.summary, rows: S.lmpMulti[i]?.rows } : null)
+          .filter(Boolean),
+        ...common
+      };
+    } else {
+      payload = {
+        context: { mode: 'single', zone: S.zone1, area: S.area, date: S.date },
+        lmp: S.lmp1,
+        ...common
+      };
+    }
     const r = await fetch('/api/analysis', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
