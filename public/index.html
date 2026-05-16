@@ -261,6 +261,33 @@
   .tag-live { font-family: var(--mono); font-size: 9px; color: var(--green); border: 1px solid rgba(0,230,118,0.3); padding: 2px 7px; letter-spacing: 0.06em; }
   .tag-da { font-family: var(--mono); font-size: 9px; color: var(--accent); border: 1px solid rgba(0,212,255,0.3); padding: 2px 7px; letter-spacing: 0.06em; }
 
+  /* ── Mode toggle ── */
+  .mode-toggle {
+    display: flex; border: 1px solid var(--border);
+  }
+  .mode-toggle .mtab {
+    font-family: var(--mono); font-size: 10px; letter-spacing: 0.07em;
+    padding: 4px 11px; border: none; background: transparent;
+    color: var(--text3); cursor: pointer; transition: all 0.15s;
+  }
+  .mode-toggle .mtab:first-child { border-right: 1px solid var(--border); }
+  .mode-toggle .mtab:hover { color: var(--text2); }
+  .mode-toggle .mtab.active { color: var(--accent); background: rgba(0,212,255,0.08); }
+
+  /* ── Date input ── */
+  input.date-input {
+    font-family: var(--mono); font-size: 11px; color: var(--text2);
+    border: 1px solid var(--border); background: var(--bg2);
+    padding: 4px 8px; cursor: pointer; transition: border-color 0.15s;
+    color-scheme: dark;
+  }
+  input.date-input:focus { outline: none; border-color: var(--accent); color: var(--accent); }
+
+  /* ── Mode-driven visibility ── */
+  body.mode-single .compare-only { display: none !important; }
+  body.mode-single .kpi-row      { grid-template-columns: repeat(3, 1fr); }
+  body.mode-single .lmp-grid     { grid-template-columns: 1fr; }
+
   @media (max-width: 900px) {
     .kpi-row { grid-template-columns: repeat(3, 1fr); }
     .grid-2, .grid-3 { grid-template-columns: 1fr; }
@@ -270,7 +297,7 @@
   }
 </style>
 </head>
-<body>
+<body class="mode-compare">
 
 <header>
   <div class="logo">
@@ -299,19 +326,24 @@
     </div>
     <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;">
       <div class="selector-row">
+        <div class="mode-toggle">
+          <button class="mtab active" id="mtab-compare" onclick="setMode('compare')">COMPARE</button>
+          <button class="mtab"        id="mtab-single"  onclick="setMode('single')">SINGLE</button>
+        </div>
         <span class="selector-lbl">Z1</span>
         <select id="zone1-select" class="zone-select" onchange="onZoneChange()"></select>
-        <span class="selector-lbl">vs</span>
-        <select id="zone2-select" class="zone-select" onchange="onZoneChange()"></select>
+        <span class="selector-lbl compare-only">vs</span>
+        <select id="zone2-select" class="zone-select compare-only" onchange="onZoneChange()"></select>
         <span class="selector-lbl">AREA</span>
         <select id="area-select" class="zone-select" onchange="onAreaChange()"></select>
       </div>
       <span class="tag-da">DA</span>
-      <span style="font-family:var(--mono);font-size:11px;color:var(--text3);">Next update: <span id="next-update" style="color:var(--text2);">--</span></span>
+      <span style="font-family:var(--mono);font-size:11px;color:var(--text3);">Next: <span id="next-update" style="color:var(--text2);">--</span></span>
       <div class="date-nav">
-        <button onclick="prevDay()">◀ prev</button>
+        <button onclick="prevDay()">◀</button>
+        <input type="date" id="date-input" class="date-input" onchange="onDateInput()">
         <button id="btn-today" onclick="goToday()">today</button>
-        <button onclick="nextDay()">next ▶</button>
+        <button onclick="nextDay()">▶</button>
       </div>
     </div>
   </div>
@@ -324,13 +356,13 @@
       <div class="kpi-sub" id="kpi-z1-peak">--</div>
       <div class="kpi-badge" id="kpi-z1-badge">--</div>
     </div>
-    <div class="kpi" style="--accent-color:#00e676;">
+    <div class="kpi compare-only" style="--accent-color:#00e676;">
       <div class="kpi-label" id="kpi-z2-label">Zone 2 Avg LMP</div>
       <div class="kpi-val" id="kpi-z2-avg" style="color:var(--green);">--</div>
       <div class="kpi-sub" id="kpi-z2-peak">--</div>
       <div class="kpi-badge" id="kpi-z2-badge" style="background:rgba(0,230,118,0.1);color:var(--green);">--</div>
     </div>
-    <div class="kpi" style="--accent-color:#ffaa00;">
+    <div class="kpi compare-only" style="--accent-color:#ffaa00;">
       <div class="kpi-label" id="kpi-spread-label">Z1–Z2 Spread</div>
       <div class="kpi-val" id="kpi-spread" style="color:var(--amber);">--</div>
       <div class="kpi-sub" id="kpi-spread-sub">--</div>
@@ -351,7 +383,7 @@
   </div>
 
   <!-- LMP CHART + SPREAD -->
-  <div class="grid-3" style="margin-bottom:16px;">
+  <div class="grid-3 lmp-grid" style="margin-bottom:16px;">
     <div class="panel">
       <div class="panel-header">
         <span class="panel-title" id="lmp-chart-title">Hourly DA LMP — Zone Comparison</span>
@@ -360,14 +392,14 @@
       <div class="panel-body">
         <div style="display:flex;gap:16px;margin-bottom:12px;font-family:var(--mono);font-size:10px;color:var(--text3);">
           <span style="display:flex;align-items:center;gap:5px;"><span style="display:inline-block;width:16px;height:2px;background:var(--accent);"></span><span id="legend-z1">Zone 1 LMP</span></span>
-          <span style="display:flex;align-items:center;gap:5px;"><span style="display:inline-block;width:16px;height:2px;background:var(--green);"></span><span id="legend-z2">Zone 2 LMP</span></span>
+          <span class="compare-only" style="display:flex;align-items:center;gap:5px;"><span style="display:inline-block;width:16px;height:2px;background:var(--green);"></span><span id="legend-z2">Zone 2 LMP</span></span>
           <span style="display:flex;align-items:center;gap:5px;"><span style="display:inline-block;width:16px;height:2px;background:var(--text3);border-top:2px dashed var(--text3);"></span>System energy</span>
         </div>
         <div class="chart-wrap" style="height:240px;"><canvas id="lmpChart"></canvas></div>
       </div>
     </div>
 
-    <div class="panel">
+    <div class="panel compare-only">
       <div class="panel-header">
         <span class="panel-title" id="spread-chart-title">Z1–Z2 Basis Spread</span>
         <span class="panel-tag">$/MWh</span>
@@ -390,7 +422,7 @@
       <div class="panel-body">
         <div style="display:flex;gap:16px;margin-bottom:12px;font-family:var(--mono);font-size:10px;color:var(--text3);">
           <span style="display:flex;align-items:center;gap:5px;"><span style="display:inline-block;width:10px;height:10px;background:rgba(0,212,255,0.6);"></span><span id="cong-lbl-z1">Zone 1</span></span>
-          <span style="display:flex;align-items:center;gap:5px;"><span style="display:inline-block;width:10px;height:10px;background:rgba(0,230,118,0.6);"></span><span id="cong-lbl-z2">Zone 2</span></span>
+          <span class="compare-only" style="display:flex;align-items:center;gap:5px;"><span style="display:inline-block;width:10px;height:10px;background:rgba(0,230,118,0.6);"></span><span id="cong-lbl-z2">Zone 2</span></span>
         </div>
         <div class="chart-wrap" style="height:210px;"><canvas id="congChart"></canvas></div>
       </div>
@@ -496,6 +528,7 @@ const S = {
   zone1: 'DOM',
   zone2: 'AEP',
   area: 'RTO',
+  mode: 'compare',   // 'compare' | 'single'
   lmp1: null,
   lmp2: null,
   binding: null,
@@ -591,13 +624,18 @@ async function loadAll() {
   setStatus('loading', 'Loading…');
   el('refresh-btn').disabled = true;
   el('market-date').textContent = `${S.date} · Day-Ahead Settlement`;
+  el('date-input').value = S.date;
 
   try {
     await loadStatus();
 
+    const zone2Fetch = S.mode === 'compare'
+      ? apiFetch(`/api/pjm/da-lmp/zone?zone=${encodeURIComponent(S.zone2)}&date=${S.date}`)
+      : Promise.resolve(null);
+
     const [r1, r2, rb, rt, rn] = await Promise.allSettled([
       apiFetch(`/api/pjm/da-lmp/zone?zone=${encodeURIComponent(S.zone1)}&date=${S.date}`),
-      apiFetch(`/api/pjm/da-lmp/zone?zone=${encodeURIComponent(S.zone2)}&date=${S.date}`),
+      zone2Fetch,
       apiFetch(`/api/pjm/constraints/binding?date=${S.date}`),
       apiFetch(`/api/pjm/constraints/transmission?date=${S.date}`),
       apiFetch(`/api/pjm/renewables?date=${S.date}&area=${encodeURIComponent(S.area)}`)
@@ -630,8 +668,9 @@ function setStatus(state, text) {
 /* ─── Render ─── */
 function render() {
   const z1 = S.zone1, z2 = S.zone2;
+  const cmp = S.mode === 'compare';
 
-  el('lmp-chart-title').textContent   = `Hourly DA LMP — ${z1} vs ${z2}`;
+  el('lmp-chart-title').textContent   = cmp ? `Hourly DA LMP — ${z1} vs ${z2}` : `Hourly DA LMP — ${z1}`;
   el('spread-chart-title').textContent= `${z1}–${z2} Basis Spread`;
   el('kpi-z1-label').textContent      = `${z1} Avg LMP`;
   el('kpi-z2-label').textContent      = `${z2} Avg LMP`;
@@ -771,11 +810,14 @@ function updateCharts() {
 
   const c = CHARTS;
 
-  c.lmp.data.datasets[0].data  = lmp1;
-  c.lmp.data.datasets[0].label = `${S.zone1} LMP`;
-  c.lmp.data.datasets[1].data  = lmp2;
-  c.lmp.data.datasets[1].label = `${S.zone2} LMP`;
-  c.lmp.data.datasets[2].data  = sysE;
+  const single = S.mode === 'single';
+
+  c.lmp.data.datasets[0].data    = lmp1;
+  c.lmp.data.datasets[0].label   = `${S.zone1} LMP`;
+  c.lmp.data.datasets[1].data    = lmp2;
+  c.lmp.data.datasets[1].label   = `${S.zone2} LMP`;
+  c.lmp.data.datasets[1].hidden  = single;
+  c.lmp.data.datasets[2].data    = sysE;
   c.lmp.update();
 
   c.spread.data.datasets[0].data = spread;
@@ -784,10 +826,11 @@ function updateCharts() {
   );
   c.spread.update();
 
-  c.cong.data.datasets[0].data  = cong1;
-  c.cong.data.datasets[0].label = `${S.zone1} cong`;
-  c.cong.data.datasets[1].data  = cong2;
-  c.cong.data.datasets[1].label = `${S.zone2} cong`;
+  c.cong.data.datasets[0].data   = cong1;
+  c.cong.data.datasets[0].label  = `${S.zone1} cong`;
+  c.cong.data.datasets[1].data   = cong2;
+  c.cong.data.datasets[1].label  = `${S.zone2} cong`;
+  c.cong.data.datasets[1].hidden = single;
   c.cong.update();
 
   const genH = new Array(24).fill(null).map(() => ({ solar: null, wind: null }));
@@ -905,7 +948,8 @@ function renderAlerts() {
 
   // Publish info
   const s1 = S.lmp1?.summary, s2 = S.lmp2?.summary, bs = S.binding?.summary;
-  alerts.push({ color: 'green', msg: `DA data loaded for ${esc(S.date)}. ${esc(S.zone1)} avg ${fmt$(s1?.average_lmp)} · ${esc(S.zone2)} avg ${fmt$(s2?.average_lmp)}.`, time: `${ts} · severity: INFO` });
+  const z2info = S.mode === 'compare' ? ` · ${esc(S.zone2)} avg ${fmt$(s2?.average_lmp)}` : '';
+  alerts.push({ color: 'green', msg: `DA data loaded for ${esc(S.date)}. ${esc(S.zone1)} avg ${fmt$(s1?.average_lmp)}${z2info}.`, time: `${ts} · severity: INFO` });
 
   // LMP spike
   if (s1?.max_lmp > 80) alerts.unshift({ color: 'red',
@@ -1008,10 +1052,31 @@ function renderMarkdown(container, raw) {
   container.innerHTML = html;
 }
 
+/* ─── Mode toggle ─── */
+function setMode(mode) {
+  S.mode = mode;
+  document.body.className = 'mode-' + mode;
+  el('mtab-compare').classList.toggle('active', mode === 'compare');
+  el('mtab-single').classList.toggle('active', mode === 'single');
+  // In single mode, clear zone 2 data so stale values don't linger in charts
+  if (mode === 'single') {
+    S.lmp2 = null;
+    if (CHARTS.lmp)  { CHARTS.lmp.data.datasets[1].hidden = true;  CHARTS.lmp.update(); }
+    if (CHARTS.cong) { CHARTS.cong.data.datasets[1].hidden = true; CHARTS.cong.update(); }
+  } else {
+    // Re-fetch zone 2 when switching back to compare
+    loadAll();
+  }
+}
+
 /* ─── Date navigation ─── */
-function prevDay()  { S.date = dateAdd(S.date, -1); loadAll(); }
-function nextDay()  { S.date = dateAdd(S.date,  1); loadAll(); }
-function goToday()  { S.date = dateStr(new Date()); loadAll(); }
+function prevDay()      { S.date = dateAdd(S.date, -1); loadAll(); }
+function nextDay()      { S.date = dateAdd(S.date,  1); loadAll(); }
+function goToday()      { S.date = dateStr(new Date()); loadAll(); }
+function onDateInput()  {
+  const val = el('date-input').value;
+  if (val && /^\d{4}-\d{2}-\d{2}$/.test(val)) { S.date = val; loadAll(); }
+}
 
 function onZoneChange() {
   S.zone1 = el('zone1-select').value;
