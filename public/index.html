@@ -501,13 +501,36 @@
   .panel, .kpi { animation: fadeUp .35s ease both; }
 
   /* Mode visibility */
-  body.mode-single .row.lmp, body.mode-multi .row.lmp { grid-template-columns: 1fr; }
-  body.mode-single .compare-only, body.mode-multi .compare-only { display: none !important; }
+  body.mode-single .row.lmp, body.mode-multi .row.lmp, body.mode-custom .row.lmp { grid-template-columns: 1fr; }
+  body.mode-single .compare-only, body.mode-multi .compare-only, body.mode-custom .compare-only { display: none !important; }
   body:not(.mode-multi) .multi-only { display: none !important; }
   body.mode-single .kpi-row-static { grid-template-columns: repeat(3, 1fr); }
   body.mode-multi  .kpi-row-static { display: none !important; }
-  body:not(.mode-multi) #kpi-row-multi { display: none !important; }
+  body.mode-custom .kpi-row-static { display: none !important; }
+  body:not(.mode-multi):not(.mode-custom) #kpi-row-multi { display: none !important; }
   body.mode-multi  #kpi-row-multi { display: grid; gap: 12px; margin-bottom: 22px; }
+  body.mode-custom #kpi-row-multi { display: grid; gap: 12px; margin-bottom: 22px; }
+  body:not(.mode-custom) .custom-only { display: none !important; }
+  body.mode-custom #zone-select-group { display: none !important; }
+
+  /* PNode input */
+  .pnode-wrap {
+    display: inline-flex; align-items: stretch;
+    background: var(--surface-1); border: 1px solid var(--line); border-radius: 6px; overflow: hidden;
+  }
+  .pnode-input {
+    font-family: var(--mono); font-size: 11.5px; color: var(--text-soft);
+    background: transparent; border: none; border-right: 1px solid var(--line);
+    padding: 6px 10px; width: 140px; outline: none;
+  }
+  .pnode-input:focus { background: var(--surface-2); color: var(--text); }
+  .pnode-input::placeholder { color: var(--text-dim); }
+  .pnode-go {
+    font-family: var(--mono); font-size: 11px; letter-spacing: 0.02em;
+    background: transparent; border: none; padding: 0 12px;
+    color: var(--blue-2); cursor: pointer; transition: all .12s;
+  }
+  .pnode-go:hover { background: var(--surface-2); color: var(--text); }
 
   /* Responsive */
   @media (max-width: 1200px) {
@@ -570,18 +593,31 @@
         <button id="mtab-single"  data-mode="single">Single</button>
         <button id="mtab-compare" data-mode="compare" class="active">Compare</button>
         <button id="mtab-multi"   data-mode="multi">Multi</button>
+        <button id="mtab-custom"  data-mode="custom">Custom</button>
       </div>
 
-      <span class="selector-label">Zone</span>
-      <select id="zone1-select" class="zone-select"></select>
-      <span class="vs-label compare-only">vs</span>
-      <select id="zone2-select" class="zone-select compare-only"></select>
+      <!-- Standard zone selects (hidden in custom mode) -->
+      <div id="zone-select-group" style="display:contents;">
+        <span class="selector-label">Zone</span>
+        <select id="zone1-select" class="zone-select"></select>
+        <span class="vs-label compare-only">vs</span>
+        <select id="zone2-select" class="zone-select compare-only"></select>
+        <span class="selector-label multi-only">+</span>
+        <select id="mz2-select" class="zone-select multi-only"></select>
+        <select id="mz3-select" class="zone-select multi-only"></select>
+        <select id="mz4-select" class="zone-select multi-only"></select>
+        <select id="mz5-select" class="zone-select multi-only"></select>
+      </div>
 
-      <span class="selector-label multi-only">+</span>
-      <select id="mz2-select" class="zone-select multi-only"></select>
-      <select id="mz3-select" class="zone-select multi-only"></select>
-      <select id="mz4-select" class="zone-select multi-only"></select>
-      <select id="mz5-select" class="zone-select multi-only"></select>
+      <!-- Custom PNode controls -->
+      <span class="selector-label custom-only">PNode ID</span>
+      <div class="pnode-wrap custom-only">
+        <input id="pnode-input" class="pnode-input" type="text" placeholder="e.g. 34964545" inputmode="numeric">
+        <button id="pnode-go" class="pnode-go">Go</button>
+      </div>
+      <span class="selector-label custom-only" style="opacity:0.5;">vs</span>
+      <select id="cz1-select" class="zone-select custom-only"></select>
+      <select id="cz2-select" class="zone-select custom-only"></select>
 
       <span class="selector-label">Area</span>
       <select id="area-select" class="zone-select"></select>
@@ -838,7 +874,12 @@ const S = {
   lmpMulti: [null,null,null,null,null],
   lmp1: null, lmp2: null,
   binding: null, transmission: null, renewables: null,
-  loading: false
+  loading: false,
+  // custom mode
+  pnodeId: '',
+  customCompare: ['', ''],
+  lmpCustom: null,
+  lmpCustomZones: [null, null],
 };
 
 const ZONE_COLORS = ['#60a5fa','#34d399','#fbbf24','#a78bfa','#fb7185'];
@@ -943,6 +984,11 @@ async function loadStatus() {
     const cur = S.multiZones[i + 1];
     sel.innerHTML = noneOpt + zones.map(z => `<option value="${esc(z)}"${z === cur ? ' selected' : ''}>${esc(z)}</option>`).join('');
   });
+  ['cz1-select','cz2-select'].forEach((id, i) => {
+    const sel = el(id);
+    const cur = S.customCompare[i];
+    sel.innerHTML = noneOpt + zones.map(z => `<option value="${esc(z)}"${z === cur ? ' selected' : ''}>${esc(z)}</option>`).join('');
+  });
 
   const areaSel = el('area-select');
   areaSel.innerHTML = areas.map(a => `<option value="${esc(a)}"${a === S.area ? ' selected' : ''}>${esc(a)}</option>`).join('');
@@ -968,7 +1014,32 @@ async function loadAll() {
   try {
     await loadStatus();
 
-    if (S.mode === 'multi') {
+    if (S.mode === 'custom') {
+      if (!S.pnodeId) {
+        render();
+        setStatus('live', 'Enter a PNode ID');
+        S.loading = false; el('refresh-btn').disabled = false;
+        el('footer-ts').textContent = 'Last sync: --';
+        return;
+      }
+      const [r0, rz1, rz2, rb, rt, rn] = await Promise.allSettled([
+        apiFetch(`/api/pjm/da-lmp/zone?pnode_id=${encodeURIComponent(S.pnodeId)}&date=${S.date}`),
+        S.customCompare[0] ? apiFetch(`/api/pjm/da-lmp/zone?zone=${encodeURIComponent(S.customCompare[0])}&date=${S.date}`) : Promise.resolve(null),
+        S.customCompare[1] ? apiFetch(`/api/pjm/da-lmp/zone?zone=${encodeURIComponent(S.customCompare[1])}&date=${S.date}`) : Promise.resolve(null),
+        apiFetch(`/api/pjm/constraints/binding?date=${S.date}`),
+        apiFetch(`/api/pjm/constraints/transmission?date=${S.date}`),
+        apiFetch(`/api/pjm/renewables?date=${S.date}&area=${encodeURIComponent(S.area)}`)
+      ]);
+      S.lmpCustom      = r0.status  === 'fulfilled' ? r0.value  : null;
+      S.lmpCustomZones = [
+        rz1.status === 'fulfilled' ? rz1.value : null,
+        rz2.status === 'fulfilled' ? rz2.value : null
+      ];
+      S.lmp1        = S.lmpCustom;
+      S.binding     = rb.status === 'fulfilled' ? rb.value : null;
+      S.transmission= rt.status === 'fulfilled' ? rt.value : null;
+      S.renewables  = rn.status === 'fulfilled' ? rn.value : null;
+    } else if (S.mode === 'multi') {
       const [lmpResults, rb, rt, rn] = await Promise.allSettled([
         Promise.allSettled(S.multiZones.map(z =>
           z ? apiFetch(`/api/pjm/da-lmp/zone?zone=${encodeURIComponent(z)}&date=${S.date}`) : Promise.resolve(null)
@@ -1024,19 +1095,31 @@ function render() {
   const cmp   = S.mode === 'compare';
   const multi = S.mode === 'multi';
 
-  if (multi) {
+  const custom = S.mode === 'custom';
+  const pnodeName = custom ? (S.lmpCustom?.rows?.[0]?.pnode_name || (S.pnodeId ? `PNode ${S.pnodeId}` : 'Custom PNode')) : '';
+
+  if (custom) {
+    const cmpLabels = S.customCompare.filter(Boolean);
+    el('lmp-chart-title').textContent = cmpLabels.length
+      ? `Hourly DA LMP — ${pnodeName} vs ${cmpLabels.join(' · ')}`
+      : `Hourly DA LMP — ${pnodeName}`;
+    el('cong-lbl-z1').textContent = trunc(pnodeName, 18);
+    el('cong-lbl-z2').textContent = S.customCompare[0] || 'Z2';
+  } else if (multi) {
     const active = S.multiZones.filter(Boolean);
     el('lmp-chart-title').textContent = `Hourly DA LMP — ${active.join(' · ')}`;
+    el('cong-lbl-z1').textContent = S.multiZones[0] || 'Z1';
+    el('cong-lbl-z2').textContent = z2;
   } else {
     el('lmp-chart-title').textContent = cmp ? `Hourly DA LMP — ${z1} vs ${z2}` : `Hourly DA LMP — ${z1}`;
+    el('cong-lbl-z1').textContent = z1;
+    el('cong-lbl-z2').textContent = z2;
   }
 
   el('spread-chart-title').textContent = `${z1}–${z2} Basis Spread`;
   el('kpi-z1-label').textContent       = multi ? `${S.multiZones[0] || 'Z1'} Avg LMP` : `${z1} Avg LMP`;
   el('kpi-z2-label').textContent       = `${z2} Avg LMP`;
   el('kpi-spread-label').textContent   = `${z1}–${z2} Spread`;
-  el('cong-lbl-z1').textContent        = multi ? (S.multiZones[0] || 'Z1') : z1;
-  el('cong-lbl-z2').textContent        = z2;
   el('area-label').textContent         = S.area;
 
   renderLmpLegend();
@@ -1050,7 +1133,8 @@ function render() {
 
 /* ─── KPIs ─── */
 function renderKpis() {
-  if (S.mode === 'multi') { renderMultiKpis(); return; }
+  if (S.mode === 'custom') { renderCustomKpis(); return; }
+  if (S.mode === 'multi')  { renderMultiKpis();  return; }
 
   const s1 = S.lmp1?.summary;
   const s2 = S.lmp2?.summary;
@@ -1155,6 +1239,67 @@ function renderMultiKpis() {
   row.innerHTML = zoneCards + bindingCard + shadowCard;
 }
 
+function renderCustomKpis() {
+  const bs      = S.binding?.summary;
+  const maxAbs  = bs?.max_abs_shadow_price ?? 0;
+  const top     = bs?.top_constraints?.[0];
+  const s0      = S.lmpCustom?.summary;
+  const pnodeName = S.lmpCustom?.rows?.[0]?.pnode_name || (S.pnodeId ? `PNode ${S.pnodeId}` : 'Custom');
+
+  const activeCompare = S.customCompare
+    .map((z, i) => ({ zone: z, data: S.lmpCustomZones[i], idx: i }))
+    .filter(x => x.zone);
+
+  const pnodeCard = `
+    <div class="kpi" style="--kpi-color:var(--blue);">
+      <div class="kpi-head">
+        <div class="kpi-label">${esc(trunc(pnodeName, 24))} LMP</div>
+        <span class="kpi-zone-chip">#${esc(S.pnodeId)}</span>
+      </div>
+      <div class="kpi-val">${s0 ? fmt$(s0.average_lmp) : '--'}</div>
+      <div class="kpi-sub">${s0 ? `Peak ${fmt$(s0.max_lmp)} @ ${hourLabel(s0.max_hour)}` : '--'}</div>
+    </div>`;
+
+  const zoneCards = activeCompare.map(({ zone, data, idx }) => {
+    const s = data?.summary;
+    const color = ZONE_COLORS[idx + 1];
+    return `
+      <div class="kpi" style="--kpi-color:${color};">
+        <div class="kpi-head">
+          <div class="kpi-label">${esc(zone)} Avg LMP</div>
+          <span class="kpi-zone-chip">${esc(zone)}</span>
+        </div>
+        <div class="kpi-val">${s ? fmt$(s.average_lmp) : '--'}</div>
+        <div class="kpi-sub">${s ? `Peak ${fmt$(s.max_lmp)} @ ${hourLabel(s.max_hour)}` : '--'}</div>
+      </div>`;
+  }).join('');
+
+  const records = bs?.records ?? 0;
+  const bindingCard = `
+    <div class="kpi" style="--kpi-color:var(--red-2);">
+      <div class="kpi-head">
+        <div class="kpi-label">Binding Constraints</div>
+        <span class="kpi-delta ${records > 50 ? 'down' : records > 10 ? 'warn' : 'up'}">${records > 50 ? 'ALERT' : records > 10 ? 'WATCH' : 'LOW'}</span>
+      </div>
+      <div class="kpi-val">${records || '--'}</div>
+      <div class="kpi-sub">${(bs?.top_monitored?.length ?? 0)} unique facilities</div>
+    </div>`;
+
+  const shadowCard = `
+    <div class="kpi" style="--kpi-color:var(--violet);">
+      <div class="kpi-head">
+        <div class="kpi-label">Max Shadow Price</div>
+        <span class="kpi-delta ${maxAbs > 500 ? 'down' : maxAbs > 100 ? 'warn' : ''}">${maxAbs > 500 ? 'SEVERE' : maxAbs > 100 ? 'HIGH' : 'MOD'}</span>
+      </div>
+      <div class="kpi-val">${maxAbs ? `-$${Math.round(maxAbs)}` : '--'}</div>
+      <div class="kpi-sub">${top ? esc(trunc(top.monitored_facility, 30)) : '--'}</div>
+    </div>`;
+
+  const row = el('kpi-row-multi');
+  row.style.gridTemplateColumns = `repeat(${1 + activeCompare.length + 2}, 1fr)`;
+  row.innerHTML = pnodeCard + zoneCards + bindingCard + shadowCard;
+}
+
 /* ─── Charts ─── */
 const CHARTS = {};
 
@@ -1235,7 +1380,25 @@ function rowsByHour(data) {
 function updateCharts() {
   const c = CHARTS;
 
-  if (S.mode === 'multi') {
+  if (S.mode === 'custom') {
+    const h0 = rowsByHour(S.lmpCustom);
+    const h1 = rowsByHour(S.lmpCustomZones[0]);
+    const h2 = rowsByHour(S.lmpCustomZones[1]);
+    const pnodeName = S.lmpCustom?.rows?.[0]?.pnode_name || (S.pnodeId ? `PNode ${S.pnodeId}` : 'Custom');
+
+    c.lmp.data.datasets[0].data = h0.map(r => r?.total_lmp_da ?? null); c.lmp.data.datasets[0].label = pnodeName; c.lmp.data.datasets[0].hidden = false; c.lmp.data.datasets[0].fill = false;
+    c.lmp.data.datasets[1].data = h1.map(r => r?.total_lmp_da ?? null); c.lmp.data.datasets[1].label = S.customCompare[0] || 'Z2'; c.lmp.data.datasets[1].hidden = !S.customCompare[0]; c.lmp.data.datasets[1].fill = false;
+    c.lmp.data.datasets[2].data = h2.map(r => r?.total_lmp_da ?? null); c.lmp.data.datasets[2].label = S.customCompare[1] || 'Z3'; c.lmp.data.datasets[2].hidden = !S.customCompare[1]; c.lmp.data.datasets[2].fill = false;
+    [3, 4].forEach(i => { c.lmp.data.datasets[i].hidden = true; c.lmp.data.datasets[i].data = []; });
+    c.lmp.data.datasets[5].data = h0.map(r => r?.system_energy_price_da ?? null); c.lmp.data.datasets[5].hidden = false;
+    c.lmp.update();
+
+    c.cong.data.datasets[0].data = h0.map(r => r?.congestion_price_da ?? null); c.cong.data.datasets[0].label = trunc(pnodeName, 15) + ' cong'; c.cong.data.datasets[0].hidden = false;
+    c.cong.data.datasets[1].data = h1.map(r => r?.congestion_price_da ?? null); c.cong.data.datasets[1].label = (S.customCompare[0] || 'Z2') + ' cong'; c.cong.data.datasets[1].hidden = !S.customCompare[0];
+    c.cong.data.datasets[2].data = h2.map(r => r?.congestion_price_da ?? null); c.cong.data.datasets[2].label = (S.customCompare[1] || 'Z3') + ' cong'; c.cong.data.datasets[2].hidden = !S.customCompare[1];
+    [3, 4].forEach(i => { c.cong.data.datasets[i].hidden = true; c.cong.data.datasets[i].data = []; });
+    c.cong.update();
+  } else if (S.mode === 'multi') {
     S.multiZones.forEach((zone, i) => {
       const hrs = rowsByHour(S.lmpMulti[i]);
       c.lmp.data.datasets[i].data   = hrs.map(r => r?.total_lmp_da ?? null);
@@ -1421,13 +1584,22 @@ function renderEvents() {
   const ts = new Date().toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit' }) + ' EPT';
   const s1 = S.lmp1?.summary, s2 = S.lmp2?.summary, bs = S.binding?.summary;
 
-  let z2info = '';
-  if (S.mode === 'compare') z2info = ` · ${esc(S.zone2)} avg ${fmt$(s2?.average_lmp)}`;
-  else if (S.mode === 'multi') {
+  let primaryLabel, z2info = '';
+  if (S.mode === 'custom') {
+    const pnodeName = S.lmpCustom?.rows?.[0]?.pnode_name || (S.pnodeId ? `PNode ${S.pnodeId}` : 'Custom');
+    primaryLabel = pnodeName;
+    const cmpParts = S.customCompare.map((z, i) => z ? `${esc(z)} ${fmt$(S.lmpCustomZones[i]?.summary?.average_lmp)}` : '').filter(Boolean);
+    if (cmpParts.length) z2info = ' — ' + cmpParts.join(' · ');
+  } else if (S.mode === 'compare') {
+    primaryLabel = S.zone1; z2info = ` · ${esc(S.zone2)} avg ${fmt$(s2?.average_lmp)}`;
+  } else if (S.mode === 'multi') {
+    primaryLabel = S.zone1;
     const parts = S.multiZones.map((z, i) => z ? `${esc(z)} ${fmt$(S.lmpMulti[i]?.summary?.average_lmp)}` : '').filter(Boolean);
     z2info = ' — ' + parts.join(' · ');
+  } else {
+    primaryLabel = S.zone1;
   }
-  events.push({ sev: 'ok', icon: ICON_OK, msg: `DA data loaded for ${esc(S.date)}. ${esc(S.zone1)} avg ${fmt$(s1?.average_lmp)}${z2info}.`, tag: 'INFO', time: ts });
+  events.push({ sev: 'ok', icon: ICON_OK, msg: `DA data loaded for ${esc(S.date)}. ${esc(primaryLabel)} avg ${fmt$(s1?.average_lmp)}${z2info}.`, tag: 'INFO', time: ts });
 
   if (s1?.max_lmp > 80) events.unshift({ sev: 'high', icon: ICON_ALERT,
     msg: `${esc(S.zone1)} LMP spike: <b>${fmt$(s1.max_lmp)}/MWh</b> at ${hourLabel(s1.max_hour)} — exceeded $80 threshold.`,
@@ -1486,6 +1658,14 @@ async function triggerAnalysis() {
         lmpZones: S.multiZones.map((z, i) => z ? { zone: z, summary: S.lmpMulti[i]?.summary, rows: S.lmpMulti[i]?.rows } : null).filter(Boolean),
         ...common
       };
+    } else if (S.mode === 'custom') {
+      const pnodeName = S.lmpCustom?.rows?.[0]?.pnode_name || `PNode ${S.pnodeId}`;
+      payload = {
+        context: { mode: 'custom', pnodeId: S.pnodeId, pnodeName, compareZones: S.customCompare.filter(Boolean), area: S.area, date: S.date },
+        lmp: S.lmpCustom,
+        lmpCompare: S.lmpCustomZones.filter(Boolean),
+        ...common
+      };
     } else {
       payload = { context: { mode: 'single', zone: S.zone1, area: S.area, date: S.date }, lmp: S.lmp1, ...common };
     }
@@ -1535,7 +1715,13 @@ function renderLmpLegend() {
   const swatch = (color, dash) =>
     `<span style="display:inline-block;width:14px;height:${dash?'0':'10px'};border-radius:3px;background:${dash?'none':color};${dash?`border-top:2px dashed ${color}`:''};"></span>`;
 
-  if (S.mode === 'multi') {
+  if (S.mode === 'custom') {
+    const pnodeName = S.lmpCustom?.rows?.[0]?.pnode_name || (S.pnodeId ? `PNode ${S.pnodeId}` : 'Custom');
+    legend.innerHTML =
+      `<span class="legend-item">${swatch(ZONE_COLORS[0])}${esc(trunc(pnodeName, 22))}</span>` +
+      S.customCompare.map((z, i) => z ? `<span class="legend-item">${swatch(ZONE_COLORS[i + 1])}${esc(z)}</span>` : '').join('') +
+      `<span class="legend-item">${swatch('#565a62', true)}System energy</span>`;
+  } else if (S.mode === 'multi') {
     legend.innerHTML = S.multiZones.map((z, i) => z
       ? `<span class="legend-item">${swatch(ZONE_COLORS[i])}${esc(z)}</span>`
       : '').join('');
@@ -1551,12 +1737,14 @@ function renderLmpLegend() {
 function setMode(mode) {
   S.mode = mode;
   document.body.className = 'mode-' + mode;
-  ['compare','single','multi'].forEach(m => el('mtab-' + m).classList.toggle('active', m === mode));
+  ['compare','single','multi','custom'].forEach(m => el('mtab-' + m).classList.toggle('active', m === mode));
   if (mode === 'single') {
     S.lmp2 = null;
     if (CHARTS.lmp)  { [1,2,3,4].forEach(i => { CHARTS.lmp.data.datasets[i].hidden = true; }); CHARTS.lmp.update(); }
     if (CHARTS.cong) { [1,2,3,4].forEach(i => { CHARTS.cong.data.datasets[i].hidden = true; }); CHARTS.cong.update(); }
     renderLmpLegend();
+  } else if (mode === 'custom') {
+    if (S.pnodeId) loadAll(); else { render(); setStatus('live', 'Enter a PNode ID'); }
   } else {
     loadAll();
   }
@@ -1570,6 +1758,10 @@ el('mode-seg').addEventListener('click', e => {
 el('zone1-select').addEventListener('change', onZoneChange);
 el('zone2-select').addEventListener('change', onZoneChange);
 ['mz2-select','mz3-select','mz4-select','mz5-select'].forEach(id => el(id).addEventListener('change', onMultiZoneChange));
+el('cz1-select').addEventListener('change', onCustomZoneChange);
+el('cz2-select').addEventListener('change', onCustomZoneChange);
+el('pnode-go').addEventListener('click', loadCustomPnode);
+el('pnode-input').addEventListener('keydown', e => { if (e.key === 'Enter') loadCustomPnode(); });
 el('area-select').addEventListener('change', onAreaChange);
 el('date-input').addEventListener('change', onDateInput);
 el('prev-day').addEventListener('click', prevDay);
@@ -1578,6 +1770,17 @@ el('today-btn').addEventListener('click', goToday);
 el('refresh-btn').addEventListener('click', () => loadAll());
 el('btn-analysis').addEventListener('click', triggerAnalysis);
 
+function loadCustomPnode() {
+  const val = el('pnode-input').value.trim().replace(/\D/g, '');
+  if (!val) return;
+  S.pnodeId = val;
+  loadAll();
+}
+function onCustomZoneChange() {
+  S.customCompare[0] = el('cz1-select').value;
+  S.customCompare[1] = el('cz2-select').value;
+  if (S.pnodeId) loadAll();
+}
 function onZoneChange() {
   S.zone1 = el('zone1-select').value;
   S.zone2 = el('zone2-select').value;
