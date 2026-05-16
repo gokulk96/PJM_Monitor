@@ -575,6 +575,31 @@
   .rt-badge.cap  { background: var(--red-bg);   color: var(--red-2); }
   .rt-badge.high { background: var(--amber-bg); color: var(--amber); }
 
+  /* RT heatmap sub-header */
+  .rt-hm-subhead {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 10px 18px;
+    border-top: 1px solid var(--line);
+    background: linear-gradient(180deg, oklch(20% 0.005 250 / 0.30), transparent);
+  }
+
+  /* RT heatmap grid */
+  .rt-heatmap {
+    display: grid; min-width: 900px;
+    font-family: var(--mono);
+  }
+  .rt-heatmap[data-gran="hourly"]      { gap: 2px; }
+  .rt-heatmap[data-gran="five_minute"] { gap: 0px; }
+  .rt-hm-th {
+    font-size: 9px; color: var(--text-dim); text-align: left;
+    padding: 2px 0; white-space: nowrap; overflow: visible; line-height: 1;
+  }
+  .rt-hm-cell {
+    height: 20px; border-radius: 2px; cursor: default;
+  }
+  .rt-hm-cell:hover { outline: 1px solid rgba(255,255,255,0.28); }
+  .rt-heatmap[data-gran="five_minute"] .rt-hm-cell { height: 17px; border-radius: 1px; }
+
   /* DART table */
   .dart-table { width: 100%; border-collapse: collapse; font-family: var(--mono); font-size: 11.5px; }
   .dart-table th {
@@ -994,7 +1019,20 @@
       </div>
       <div class="panel-body">
         <div id="rt-cap-notice" class="cap-notice"></div>
-        <div class="chart-wrap" style="height:280px;"><canvas id="rtChart"></canvas></div>
+        <div class="chart-wrap" style="height:260px;"><canvas id="rtChart"></canvas></div>
+      </div>
+      <!-- Heatmap sub-section — shares the time axis with the chart above -->
+      <div class="rt-hm-subhead">
+        <div class="panel-head-left">
+          <span style="font-size:12.5px;font-weight:500;">Binding Constraint Heatmap</span>
+          <span class="panel-sub">shadow price intensity · time-aligned with LMP above</span>
+        </div>
+        <div id="rt-hm-scale-wrap" style="font-family:var(--mono);font-size:10px;color:var(--text-dim);display:flex;align-items:center;gap:6px;"></div>
+      </div>
+      <div class="panel-body" style="padding-top:10px;">
+        <div class="heatmap-wrap" id="rt-heatmap-wrap">
+          <div class="empty">Awaiting data…</div>
+        </div>
       </div>
     </section>
 
@@ -2173,6 +2211,7 @@ function renderRtTab() {
 
   updateRtChart(rows);
   renderRtConstraints(S.rtBinding?.rows ?? []);
+  renderRtHeatmap(S.rtBinding?.rows ?? []);
 }
 
 function updateRtChart(rows) {
@@ -2230,6 +2269,76 @@ function renderRtConstraints(rows) {
         </div>
       </div>`;
   }).join('');
+}
+
+/* ─── RT Heatmap ─── */
+function renderRtHeatmap(constraintRows) {
+  const wrap      = el('rt-heatmap-wrap');
+  const scaleWrap = el('rt-hm-scale-wrap');
+  const lmpRows   = S.rtData?.rows ?? [];
+  const gran      = S.rtGranularity;
+
+  if (!constraintRows.length || !lmpRows.length) {
+    wrap.innerHTML = '<div class="empty">No constraint data.</div>';
+    scaleWrap.innerHTML = '';
+    return;
+  }
+
+  // Time slots derived from LMP rows — ensures column alignment with the chart
+  const timeSlots = lmpRows.map(r => r.datetime_beginning_ept);
+  const timeKeys  = timeSlots.map(t => String(t).slice(0, 16));   // "YYYY-MM-DD HH:MM"
+  const nCols     = timeSlots.length;
+
+  // Build per-facility per-slot shadow price map
+  const facMap = new Map();
+  for (const row of constraintRows) {
+    const key = `${row.monitored_facility}||${row.contingency_facility}`;
+    if (!facMap.has(key)) facMap.set(key, { name: row.monitored_facility, contingency: row.contingency_facility, data: {}, totalAbs: 0 });
+    const f   = facMap.get(key);
+    const tk  = String(row.datetime_beginning_ept).slice(0, 16);
+    const abs = Math.abs(row.shadow_price ?? 0);
+    if ((f.data[tk] ?? 0) < abs) { f.totalAbs += abs - (f.data[tk] ?? 0); f.data[tk] = abs; }
+  }
+
+  const facilities = [...facMap.values()].sort((a, b) => b.totalAbs - a.totalAbs).slice(0, 12);
+  const maxVal = Math.max(...facilities.flatMap(f => Object.values(f.data)), 1);
+
+  // For 5-min show a time label every 24 slots (= 2 hours); for hourly every slot
+  const labelEvery = gran === 'five_minute' ? 24 : 1;
+  const labelWidth = 160;
+
+  let html = `<div class="rt-heatmap" data-gran="${gran}" style="grid-template-columns:${labelWidth}px repeat(${nCols},1fr);">`;
+
+  // Corner
+  html += `<div class="hm-corner"></div>`;
+
+  // Time header row
+  for (let i = 0; i < nCols; i++) {
+    html += i % labelEvery === 0
+      ? `<div class="rt-hm-th">${timeOf(timeSlots[i])}</div>`
+      : `<div class="rt-hm-th"></div>`;
+  }
+
+  // Data rows — one per facility
+  for (const fac of facilities) {
+    const displayName = trunc(fac.name ?? 'Unknown', 24);
+    html += `<div class="hm-label" title="${esc(fac.name ?? '')}">${esc(displayName)}</div>`;
+    for (let i = 0; i < nCols; i++) {
+      const v     = fac.data[timeKeys[i]] ?? 0;
+      const t     = Math.min(1, v / maxVal);
+      const alpha = v > 0 ? (0.12 + t * 0.88).toFixed(2) : '0';
+      const bg    = v > 0 ? `oklch(67% 0.20 25/${alpha})` : 'transparent';
+      const title = v > 0 ? `${esc(fac.name ?? '')} ${timeOf(timeSlots[i])}: -$${v.toFixed(0)}/MWh` : '';
+      html += `<div class="rt-hm-cell" style="background:${bg};" title="${title}"></div>`;
+    }
+  }
+
+  html += '</div>';
+  wrap.innerHTML = html;
+
+  // Color scale
+  scaleWrap.innerHTML =
+    `$0 <span style="width:72px;height:7px;border-radius:3px;display:inline-block;vertical-align:middle;background:linear-gradient(90deg,oklch(67% 0.20 25/.12),oklch(67% 0.20 25/1));"></span> $${maxVal >= 100 ? Math.round(maxVal) : maxVal.toFixed(0)} peak`;
 }
 
 /* ─── DART data loading ─── */
