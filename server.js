@@ -10,6 +10,7 @@ const publicDir = path.join(__dirname, "public");
 loadDotEnv(path.join(__dirname, ".env"));
 
 const PORT = Number(process.env.PORT || 3000);
+const ACCESS_TOKEN = process.env.ACCESS_TOKEN || "";
 const PJM_BASE_URL = (process.env.PJM_API_BASE_URL || "https://api.pjm.com/api/v1").replace(/\/$/, "");
 const PJM_API_KEY = process.env.PJM_API_KEY || "";
 const PJM_AUTH_MODE = (process.env.PJM_AUTH_MODE || "header").toLowerCase();
@@ -56,10 +57,20 @@ const routes = {
   "/api/analysis": handleAnalysis
 };
 
+function checkAuth(req, res) {
+  if (!ACCESS_TOKEN) return true;
+  const auth = req.headers["authorization"] || "";
+  if (auth === `Bearer ${ACCESS_TOKEN}`) return true;
+  res.writeHead(401, { "WWW-Authenticate": 'Bearer realm="PJM Monitor"', "Content-Type": "application/json" });
+  res.end(JSON.stringify({ error: "Unauthorized" }));
+  return false;
+}
+
 const server = http.createServer(async (req, res) => {
   try {
     const url = new URL(req.url, `http://${req.headers.host || "localhost"}`);
     if (url.pathname in routes) {
+      if (!checkAuth(req, res)) return;
       await routes[url.pathname](req, res, url);
       return;
     }
