@@ -547,6 +547,53 @@
   body.mode-custom.has-compare .spread-panel { display: flex !important; }
   body.mode-custom.has-compare .row.lmp { grid-template-columns: minmax(0, 2.4fr) minmax(0, 1fr); }
 
+  /* ─── Top-level tab bar ─── */
+  .tab-bar {
+    display: flex; gap: 2px; margin-bottom: 22px;
+    background: var(--surface-1); border: 1px solid var(--line);
+    border-radius: 9px; padding: 3px; width: fit-content;
+  }
+  .tab-btn {
+    font-family: var(--mono); font-size: 11.5px; letter-spacing: 0.02em;
+    padding: 6px 18px; border-radius: 6px;
+    background: transparent; border: none; color: var(--text-mute);
+    cursor: pointer; transition: all .15s;
+  }
+  .tab-btn:hover { color: var(--text-soft); }
+  .tab-btn.active { background: var(--surface-3); color: var(--text); box-shadow: 0 1px 0 rgba(255,255,255,0.05) inset; }
+  .tab-section[hidden] { display: none !important; }
+
+  /* RT / DART pills */
+  .tag-rt   { font-family: var(--mono); font-size: 10px; padding: 2.5px 7px; border-radius: 4px; background: var(--green-bg);  color: var(--green);  letter-spacing: 0.03em; }
+  .tag-dart { font-family: var(--mono); font-size: 10px; padding: 2.5px 7px; border-radius: 4px; background: var(--amber-bg); color: var(--amber); letter-spacing: 0.03em; }
+
+  /* Cap notice */
+  .cap-notice { font-family: var(--mono); font-size: 10.5px; color: var(--amber); margin-bottom: 8px; }
+
+  /* RT constraint badges */
+  .rt-badge { display: inline-flex; align-items: center; font-family: var(--mono); font-size: 10px; padding: 2px 7px; border-radius: 4px; letter-spacing: 0.03em; }
+  .rt-badge.cap  { background: var(--red-bg);   color: var(--red-2); }
+  .rt-badge.high { background: var(--amber-bg); color: var(--amber); }
+
+  /* DART table */
+  .dart-table { width: 100%; border-collapse: collapse; font-family: var(--mono); font-size: 11.5px; }
+  .dart-table th {
+    font-size: 10px; color: var(--text-dim); text-align: right;
+    letter-spacing: 0.05em; text-transform: uppercase;
+    padding: 8px 14px; border-bottom: 1px solid var(--line);
+    cursor: pointer; user-select: none; white-space: nowrap; position: sticky; top: 0;
+    background: var(--surface-2);
+  }
+  .dart-table th:first-child, .dart-table td:first-child { text-align: left; }
+  .dart-table th:hover { color: var(--text-soft); }
+  .dart-table td { padding: 7px 14px; border-bottom: 1px solid var(--line); text-align: right; color: var(--text-soft); font-variant-numeric: tabular-nums; }
+  .dart-table tr:last-child td { border-bottom: none; }
+  .dart-table tbody tr:hover td { background: var(--surface-hover); }
+  .dart-high { color: oklch(67% 0.20 25); font-weight: 500; }
+  .dart-mod  { color: var(--amber); }
+  .dart-low  { color: var(--text-dim); }
+  .dart-neg  { color: var(--blue-2); }
+
   /* Responsive */
   @media (max-width: 1200px) {
     .kpi-row, body.mode-single .kpi-row { grid-template-columns: repeat(3, 1fr); }
@@ -592,6 +639,16 @@
 </header>
 
 <main>
+
+  <!-- Top-level tabs -->
+  <div class="tab-bar" role="tablist">
+    <button class="tab-btn active" id="tabbtn-da"   data-tab="da"   role="tab">Day-Ahead</button>
+    <button class="tab-btn"        id="tabbtn-rt"   data-tab="rt"   role="tab">Real-Time</button>
+    <button class="tab-btn"        id="tabbtn-dart" data-tab="dart" role="tab">DART Spread</button>
+  </div>
+
+  <!-- DA section -->
+  <div id="section-da" class="tab-section">
 
   <!-- Toolbar -->
   <div class="toolbar">
@@ -866,6 +923,174 @@
     </div>
   </section>
 
+  </div><!-- end #section-da -->
+
+  <!-- ═══ RT section ═══ -->
+  <div id="section-rt" class="tab-section" hidden>
+    <div class="toolbar">
+      <div class="toolbar-left">
+        <div class="date-block">
+          <h1 id="rt-date-display">--</h1>
+          <span class="day">Real-Time LMP</span>
+        </div>
+        <span class="tag-rt">Real-Time</span>
+      </div>
+      <div class="toolbar-right">
+        <div class="seg" id="rt-gran-seg">
+          <button id="rtgran-hourly"  data-gran="hourly"      class="active">Hourly</button>
+          <button id="rtgran-fivemin" data-gran="five_minute">5-min</button>
+        </div>
+        <span class="selector-label">Zone</span>
+        <select id="rt-zone-select" class="zone-select"></select>
+        <div class="stepper">
+          <button id="rt-prev-day" title="Previous day"><svg viewBox="0 0 16 16" fill="none"><path d="M10 4l-4 4 4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+          <input type="date" id="rt-date-input">
+          <button id="rt-today-btn" class="today-btn">Today</button>
+          <button id="rt-next-day" title="Next day"><svg viewBox="0 0 16 16" fill="none"><path d="M6 4l4 4-4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+        </div>
+        <button id="rt-refresh-btn" class="icon-btn" title="Refresh RT data">
+          <svg viewBox="0 0 16 16" fill="none"><path d="M2 8a6 6 0 0 1 10.5-3.97V3M14 8a6 6 0 0 1-10.5 3.97V13" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/><path d="M12.5 1.5v2.5h-2.5M3.5 14.5V12h2.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
+      </div>
+    </div>
+
+    <div class="kpi-row" style="grid-template-columns:repeat(4,1fr);margin-bottom:22px;">
+      <div class="kpi" style="--kpi-color:var(--green);">
+        <div class="kpi-head"><div class="kpi-label">Avg RT LMP</div><span class="kpi-zone-chip" id="rt-kpi-zone">--</span></div>
+        <div class="kpi-val" id="rt-kpi-avg">--</div>
+        <div class="kpi-sub" id="rt-kpi-avg-sub">--</div>
+      </div>
+      <div class="kpi" style="--kpi-color:var(--red-2);">
+        <div class="kpi-head"><div class="kpi-label">Peak LMP</div><span class="kpi-delta" id="rt-kpi-peak-badge"></span></div>
+        <div class="kpi-val" id="rt-kpi-peak">--</div>
+        <div class="kpi-sub" id="rt-kpi-peak-sub">--</div>
+      </div>
+      <div class="kpi" style="--kpi-color:var(--blue);">
+        <div class="kpi-head"><div class="kpi-label">Min LMP</div></div>
+        <div class="kpi-val" id="rt-kpi-min">--</div>
+        <div class="kpi-sub" id="rt-kpi-min-sub">--</div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-head"><div class="kpi-label">Intervals</div><span class="kpi-delta" id="rt-kpi-gran-badge">hourly</span></div>
+        <div class="kpi-val" id="rt-kpi-intervals">--</div>
+        <div class="kpi-sub" id="rt-kpi-intervals-sub">of 24 (hourly)</div>
+      </div>
+    </div>
+
+    <section class="panel" style="margin-bottom:14px;">
+      <div class="panel-head">
+        <div class="panel-head-left">
+          <span class="panel-title" id="rt-chart-title">RT LMP</span>
+          <span class="panel-sub" id="rt-chart-sub">$/MWh · hourly</span>
+        </div>
+        <div class="panel-head-right">
+          <div class="legend" style="margin:0;">
+            <span class="legend-item"><span class="legend-swatch" style="background:#378add;"></span>Total LMP</span>
+            <span class="legend-item"><span class="legend-swatch" style="display:inline-block;width:14px;height:0;border-top:2px dashed #1d9e75;margin-bottom:1px;"></span>Sys energy</span>
+            <span class="legend-item"><span class="legend-swatch" style="background:rgba(186,117,23,0.6);"></span>Cong+</span>
+            <span class="legend-item"><span class="legend-swatch" style="background:rgba(162,45,45,0.6);"></span>Cong−</span>
+          </div>
+        </div>
+      </div>
+      <div class="panel-body">
+        <div id="rt-cap-notice" class="cap-notice"></div>
+        <div class="chart-wrap" style="height:280px;"><canvas id="rtChart"></canvas></div>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head">
+        <div class="panel-head-left">
+          <span class="panel-title">RT Binding Constraints</span>
+          <span class="panel-sub">grouped by facility · top 15</span>
+        </div>
+        <div class="panel-head-right" id="rt-binding-count-tag" style="font-family:var(--mono);font-size:10.5px;color:var(--text-dim);">--</div>
+      </div>
+      <div class="c-list" id="rt-binding-list"><div class="empty">Awaiting data…</div></div>
+    </section>
+  </div><!-- end #section-rt -->
+
+  <!-- ═══ DART section ═══ -->
+  <div id="section-dart" class="tab-section" hidden>
+    <div class="toolbar">
+      <div class="toolbar-left">
+        <div class="date-block">
+          <h1 id="dart-date-display">--</h1>
+          <span class="day">DA vs RT Spread</span>
+        </div>
+        <span class="tag-dart">DART</span>
+      </div>
+      <div class="toolbar-right">
+        <span class="selector-label">Zone</span>
+        <select id="dart-zone-select" class="zone-select"></select>
+        <div class="stepper">
+          <button id="dart-prev-day" title="Previous day"><svg viewBox="0 0 16 16" fill="none"><path d="M10 4l-4 4 4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+          <input type="date" id="dart-date-input">
+          <button id="dart-today-btn" class="today-btn">Today</button>
+          <button id="dart-next-day" title="Next day"><svg viewBox="0 0 16 16" fill="none"><path d="M6 4l4 4-4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+        </div>
+        <button id="dart-refresh-btn" class="icon-btn" title="Refresh DART data">
+          <svg viewBox="0 0 16 16" fill="none"><path d="M2 8a6 6 0 0 1 10.5-3.97V3M14 8a6 6 0 0 1-10.5 3.97V13" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/><path d="M12.5 1.5v2.5h-2.5M3.5 14.5V12h2.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
+      </div>
+    </div>
+
+    <div class="kpi-row" style="grid-template-columns:repeat(4,1fr);margin-bottom:22px;">
+      <div class="kpi" style="--kpi-color:var(--amber);">
+        <div class="kpi-head"><div class="kpi-label">Avg DART Spread</div><span class="kpi-delta" id="dart-kpi-avg-badge">--</span></div>
+        <div class="kpi-val" id="dart-kpi-avg">--</div>
+        <div class="kpi-sub">RT − DA · positive = RT ran above</div>
+      </div>
+      <div class="kpi" style="--kpi-color:var(--red-2);">
+        <div class="kpi-head"><div class="kpi-label">Max RT Premium</div></div>
+        <div class="kpi-val" id="dart-kpi-max">--</div>
+        <div class="kpi-sub" id="dart-kpi-max-sub">--</div>
+      </div>
+      <div class="kpi" style="--kpi-color:var(--blue);">
+        <div class="kpi-head"><div class="kpi-label">Max DA Overshoot</div></div>
+        <div class="kpi-val" id="dart-kpi-overshoot">--</div>
+        <div class="kpi-sub" id="dart-kpi-overshoot-sub">--</div>
+      </div>
+      <div class="kpi" style="--kpi-color:var(--green);">
+        <div class="kpi-head"><div class="kpi-label">Hours RT &gt; DA</div><span class="kpi-zone-chip" id="dart-kpi-zone">--</span></div>
+        <div class="kpi-val" id="dart-kpi-hours">--</div>
+        <div class="kpi-sub">of 24 hours</div>
+      </div>
+    </div>
+
+    <section class="panel" style="margin-bottom:14px;">
+      <div class="panel-head">
+        <div class="panel-head-left">
+          <span class="panel-title" id="dart-chart-title">DART Spread</span>
+          <span class="panel-sub">$/MWh · RT − DA · hourly</span>
+        </div>
+        <div class="panel-head-right">
+          <div class="legend" style="margin:0;">
+            <span class="legend-item"><span class="legend-swatch" style="background:#60a5fa;"></span>RT LMP</span>
+            <span class="legend-item"><span class="legend-swatch" style="display:inline-block;width:14px;height:0;border-top:2px dashed #b8bbc0;margin-bottom:1px;"></span>DA LMP</span>
+            <span class="legend-item"><span class="legend-swatch" style="background:#378add;"></span>DART+</span>
+            <span class="legend-item"><span class="legend-swatch" style="background:#d85a30;"></span>DART−</span>
+          </div>
+        </div>
+      </div>
+      <div class="panel-body">
+        <div class="chart-wrap" style="height:300px;"><canvas id="dartChart"></canvas></div>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head">
+        <div class="panel-head-left">
+          <span class="panel-title">Hour-by-Hour DART</span>
+          <span class="panel-sub">click column headers to sort</span>
+        </div>
+      </div>
+      <div id="dart-table-wrap" style="overflow-x:auto;max-height:440px;overflow-y:auto;">
+        <div class="empty">Awaiting data…</div>
+      </div>
+    </section>
+  </div><!-- end #section-dart -->
+
 </main>
 
 <footer>
@@ -896,6 +1121,19 @@ const S = {
   customCompare: ['', ''],
   lmpCustom: null,
   lmpCustomZones: [null, null],
+  // RT tab
+  tab: 'da',
+  rtZone: 'DOM',
+  rtDate: dateStr(new Date()),
+  rtGranularity: 'hourly',
+  rtData: null,
+  rtBinding: null,
+  // DART tab
+  dartZone: 'DOM',
+  dartDate: dateStr(new Date()),
+  dartDaData: null,
+  dartRtData: null,
+  dartHourly: [],
 };
 
 const ZONE_COLORS = ['#60a5fa','#34d399','#fbbf24','#a78bfa','#fb7185'];
@@ -920,6 +1158,7 @@ function fmtMW(n) { if (n == null || !Number.isFinite(n)) return '-- MW'; return
 function hourOf(dt) { const s = String(dt ?? ''); const h = parseInt(s.length >= 13 ? s.slice(11,13) : '0', 10); return Number.isFinite(h) ? h : 0; }
 function hourLabel(dt) { if (!dt) return '--'; return 'HE' + String(hourOf(dt)).padStart(2,'0'); }
 function round2(n) { return Math.round(n * 100) / 100; }
+function timeOf(dt) { const s = String(dt ?? ''); return s.length >= 16 ? s.slice(11, 16) : s.length >= 13 ? s.slice(11, 13) + ':00' : '--'; }
 function trunc(s, n) { const str = String(s ?? ''); return str.length > n ? str.slice(0, n-1) + '…' : str; }
 
 function formatDate(dateStr) {
@@ -1008,6 +1247,11 @@ async function loadStatus() {
 
   const areaSel = el('area-select');
   areaSel.innerHTML = areas.map(a => `<option value="${esc(a)}"${a === S.area ? ' selected' : ''}>${esc(a)}</option>`).join('');
+
+  const rtZoneSel = el('rt-zone-select');
+  if (rtZoneSel) rtZoneSel.innerHTML = zones.map(z => `<option value="${esc(z)}"${z === S.rtZone ? ' selected' : ''}>${esc(z)}</option>`).join('');
+  const dartZoneSel = el('dart-zone-select');
+  if (dartZoneSel) dartZoneSel.innerHTML = zones.map(z => `<option value="${esc(z)}"${z === S.dartZone ? ' selected' : ''}>${esc(z)}</option>`).join('');
 
   if (d.openRouterConfigured) {
     el('analysis-model-tag').textContent = trunc(d.openRouterModel ?? 'OpenRouter', 28);
@@ -1786,6 +2030,332 @@ function renderLmpLegend() {
   }
 }
 
+/* ─── Tab switching ─── */
+function switchTab(tab) {
+  S.tab = tab;
+  ['da','rt','dart'].forEach(t => {
+    el('section-' + t).hidden = t !== tab;
+    el('tabbtn-' + t).classList.toggle('active', t === tab);
+  });
+  if (tab === 'rt'   && !S.rtData)    loadRtData();
+  if (tab === 'dart' && !S.dartDaData) loadDartData();
+}
+
+/* ─── RT Charts ─── */
+function ensureRtChart() {
+  if (CHARTS.rt) return;
+  CHARTS.rt = new Chart(el('rtChart'), {
+    type: 'line',
+    data: { labels: [], datasets: [
+      { label: 'Total LMP',  data: [], borderColor: '#378add', backgroundColor: 'transparent', borderWidth: 1.5, pointRadius: 0, fill: false, tension: 0.3 },
+      { label: 'Sys energy', data: [], borderColor: '#1d9e75', borderDash: [4,3], backgroundColor: 'transparent', borderWidth: 1.2, pointRadius: 0, fill: false, tension: 0.3 },
+      { label: 'Cong+', data: [], borderColor: 'transparent', backgroundColor: 'rgba(186,117,23,0.22)', borderWidth: 0, pointRadius: 0, fill: 'origin', tension: 0.2 },
+      { label: 'Cong−', data: [], borderColor: 'transparent', backgroundColor: 'rgba(162,45,45,0.20)', borderWidth: 0, pointRadius: 0, fill: 'origin', tension: 0.2 }
+    ]},
+    options: {
+      responsive: true, maintainAspectRatio: false, animation: { duration: 300 },
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          backgroundColor: '#181b20', borderColor: 'rgba(255,255,255,0.08)', borderWidth: 1,
+          titleFont: { family: monoFont, size: 10 }, bodyFont: { family: monoFont, size: 11 },
+          filter: ctx => !ctx.dataset.label.startsWith('Cong'),
+          callbacks: {
+            label: ctx => {
+              const r = (S.rtData?.rows ?? [])[ctx.dataIndex];
+              if (!r) return ` ${ctx.dataset.label}: $${ctx.parsed.y.toFixed(2)}`;
+              if (ctx.dataset.label === 'Total LMP')  return ` LMP:    $${(r.total_lmp_rt ?? ctx.parsed.y).toFixed(2)}`;
+              if (ctx.dataset.label === 'Sys energy') return ` Energy: $${(r.system_energy_price_rt ?? ctx.parsed.y).toFixed(2)}`;
+            }
+          }
+        }
+      },
+      scales: {
+        x: { ...gridStyle, ticks: { ...gridStyle.ticks, autoSkip: true, maxTicksLimit: 13 } },
+        y: { ...gridStyle, ticks: { ...gridStyle.ticks, callback: v => '$' + v } }
+      }
+    }
+  });
+}
+
+/* ─── DART Chart ─── */
+function ensureDartChart() {
+  if (CHARTS.dart) return;
+  CHARTS.dart = new Chart(el('dartChart'), {
+    type: 'bar',
+    data: { labels: [], datasets: [
+      { type: 'bar',  label: 'DART',   data: [], backgroundColor: [], borderRadius: 2, yAxisID: 'y' },
+      { type: 'line', label: 'DA LMP', data: [], borderColor: '#b8bbc0', borderDash: [5,3], borderWidth: 1.5, pointRadius: 0, fill: false, tension: 0.3, yAxisID: 'y' },
+      { type: 'line', label: 'RT LMP', data: [], borderColor: '#60a5fa', borderWidth: 1.5, pointRadius: 0, fill: false, tension: 0.3, yAxisID: 'y' }
+    ]},
+    options: {
+      responsive: true, maintainAspectRatio: false, animation: { duration: 300 },
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          backgroundColor: '#181b20', borderColor: 'rgba(255,255,255,0.08)', borderWidth: 1,
+          titleFont: { family: monoFont, size: 10 }, bodyFont: { family: monoFont, size: 11 },
+          callbacks: {
+            label: ctx => {
+              const v = ctx.parsed.y, n = ctx.dataset.label;
+              if (n === 'DART')   return ` DART:  ${v >= 0 ? '+' : ''}$${v.toFixed(2)}`;
+              if (n === 'DA LMP') return ` DA:    $${v.toFixed(2)}`;
+              if (n === 'RT LMP') return ` RT:    $${v.toFixed(2)}`;
+            }
+          }
+        }
+      },
+      scales: {
+        x: { ...gridStyle },
+        y: { ...gridStyle, ticks: { ...gridStyle.ticks, callback: v => '$' + v } }
+      }
+    }
+  });
+}
+
+/* ─── RT data loading ─── */
+async function loadRtData() {
+  S.rtData = null; S.rtBinding = null;
+  setStatus('loading', 'Loading RT…');
+  el('rt-date-input').value = S.rtDate;
+  el('rt-date-display').textContent = formatDate(S.rtDate);
+  ensureRtChart();
+  try {
+    const zone = S.rtZone, date = S.rtDate, gran = S.rtGranularity;
+    const [rLmp, rBind] = await Promise.allSettled([
+      apiFetch(`/api/pjm/rt-lmp/zone?zone=${encodeURIComponent(zone)}&date=${date}&granularity=${gran}`),
+      apiFetch(`/api/pjm/constraints/rt-binding?date=${date}`)
+    ]);
+    S.rtData    = rLmp.status   === 'fulfilled' ? rLmp.value   : null;
+    S.rtBinding = rBind.status  === 'fulfilled' ? rBind.value  : null;
+    renderRtTab();
+    setStatus('live', 'RT feed active');
+  } catch (err) {
+    console.error('RT load error:', err);
+    setStatus('error', 'Connection error');
+  }
+}
+
+function renderRtTab() {
+  const rows = S.rtData?.rows ?? [];
+  const s = S.rtData?.summary;
+  const gran = S.rtGranularity;
+
+  el('rt-kpi-zone').textContent = S.rtZone;
+  el('rt-chart-title').textContent = `RT LMP — ${S.rtZone}`;
+  el('rt-chart-sub').textContent   = `$/MWh · ${gran === 'five_minute' ? '5-min intervals' : 'hourly'}`;
+  el('rt-kpi-gran-badge').textContent   = gran === 'five_minute' ? '5-min' : 'hourly';
+  el('rt-kpi-intervals-sub').textContent = gran === 'five_minute' ? 'of 288 (5-min)' : 'of 24 (hourly)';
+
+  el('rt-kpi-avg').textContent      = s ? fmt$(s.average_lmp) : '--';
+  el('rt-kpi-avg-sub').textContent   = s ? `Avg congestion: ${fmt$(s.average_congestion)}` : '--';
+  el('rt-kpi-peak').textContent     = s ? fmt$(s.max_lmp) : '--';
+  el('rt-kpi-peak-sub').textContent  = s ? `at ${timeOf(s.max_time)}` : '--';
+  el('rt-kpi-min').textContent      = s ? fmt$(s.min_lmp) : '--';
+  el('rt-kpi-min-sub').textContent   = s ? `at ${timeOf(s.min_time)}` : '--';
+  el('rt-kpi-intervals').textContent = s ? s.intervals : '--';
+
+  if (s?.max_lmp > 500) el('rt-kpi-peak-badge').textContent = 'SPIKE', el('rt-kpi-peak-badge').className = 'kpi-delta down';
+  else if (s?.max_lmp > 150) el('rt-kpi-peak-badge').textContent = 'HIGH', el('rt-kpi-peak-badge').className = 'kpi-delta warn';
+  else el('rt-kpi-peak-badge').textContent = '', el('rt-kpi-peak-badge').className = 'kpi-delta';
+
+  const noticeEl = el('rt-cap-notice');
+  const CAP = 200;
+  if (gran === 'five_minute' && s?.max_lmp > CAP) {
+    noticeEl.textContent = `Y-axis capped at $${CAP}/MWh — true peak $${s.max_lmp.toFixed(2)} at ${timeOf(s.max_time)} EPT`;
+  } else if (gran !== 'five_minute' && s?.max_lmp > 80) {
+    noticeEl.textContent = `⚡ Spike detected: $${s.max_lmp.toFixed(2)}/MWh at ${timeOf(s.max_time)} EPT`;
+  } else {
+    noticeEl.textContent = '';
+  }
+
+  updateRtChart(rows);
+  renderRtConstraints(S.rtBinding?.rows ?? []);
+}
+
+function updateRtChart(rows) {
+  const c = CHARTS.rt;
+  if (!c) return;
+  const gran = S.rtGranularity;
+  const CAP = 200;
+  const cap = gran === 'five_minute';
+
+  c.data.labels             = rows.map(r => timeOf(r.datetime_beginning_ept));
+  c.data.datasets[0].data   = rows.map(r => (cap && (r.total_lmp_rt ?? 0) > CAP) ? CAP : r.total_lmp_rt);
+  c.data.datasets[1].data   = rows.map(r => r.system_energy_price_rt);
+  c.data.datasets[2].data   = rows.map(r => Math.max(0, r.congestion_price_rt ?? 0));
+  c.data.datasets[3].data   = rows.map(r => Math.min(0, r.congestion_price_rt ?? 0));
+  c.options.scales.y.max    = cap ? CAP : undefined;
+  c.options.scales.x.ticks.maxTicksLimit = gran === 'five_minute' ? 13 : 24;
+  c.update();
+}
+
+function renderRtConstraints(rows) {
+  const container = el('rt-binding-list');
+  if (!rows.length) {
+    container.innerHTML = '<div class="empty">No RT binding constraints for this date.</div>';
+    el('rt-binding-count-tag').textContent = '--';
+    return;
+  }
+  const map = new Map();
+  for (const row of rows) {
+    const key = `${row.monitored_facility}||${row.contingency_facility}`;
+    if (!map.has(key)) map.set(key, { monitored: row.monitored_facility, contingency: row.contingency_facility, count: 0, maxAbsShadow: 0, peakShadow: 0 });
+    const e = map.get(key);
+    e.count++;
+    const abs = Math.abs(row.shadow_price ?? 0);
+    if (abs > e.maxAbsShadow) { e.maxAbsShadow = abs; e.peakShadow = row.shadow_price; }
+  }
+  const top = [...map.values()].sort((a, b) => b.count - a.count).slice(0, 15);
+  const maxCount = top[0]?.count ?? 1;
+  el('rt-binding-count-tag').textContent = `${top.length} facilities · ${rows.length} intervals`;
+  container.innerHTML = top.map(r => {
+    const pct = Math.round((r.count / maxCount) * 100);
+    const territory = (r.monitored ?? '').split(/[\s_-]/)[0] ?? '';
+    const abs = r.maxAbsShadow;
+    const badgeHtml = abs >= 1000 ? ` <span class="rt-badge cap">≥$1000</span>` : abs >= 500 ? ` <span class="rt-badge high">≥$500</span>` : '';
+    const nameHtml  = r.count >= 20 ? `<b>${esc(r.monitored ?? 'Unknown')}</b>` : esc(r.monitored ?? 'Unknown');
+    return `
+      <div class="c-row">
+        <div>
+          <div class="c-name">${nameHtml}${badgeHtml}</div>
+          <div class="c-meta">${esc(r.contingency ?? 'Base case')} <span class="c-chip">${esc(territory)}</span></div>
+          <div class="c-bar"><div style="width:${pct}%"></div></div>
+        </div>
+        <div>
+          <div class="c-shadow">${fmt$(r.peakShadow)}</div>
+          <div class="c-hours">${r.count} interval${r.count !== 1 ? 's' : ''}</div>
+        </div>
+      </div>`;
+  }).join('');
+}
+
+/* ─── DART data loading ─── */
+async function loadDartData() {
+  S.dartDaData = null; S.dartRtData = null; S.dartHourly = [];
+  setStatus('loading', 'Loading DART…');
+  el('dart-date-input').value = S.dartDate;
+  el('dart-date-display').textContent = formatDate(S.dartDate);
+  ensureDartChart();
+  try {
+    const zone = S.dartZone, date = S.dartDate;
+    const [rDa, rRt] = await Promise.allSettled([
+      apiFetch(`/api/pjm/da-lmp/zone?zone=${encodeURIComponent(zone)}&date=${date}`),
+      apiFetch(`/api/pjm/rt-lmp/zone?zone=${encodeURIComponent(zone)}&date=${date}&granularity=hourly`)
+    ]);
+    S.dartDaData = rDa.status === 'fulfilled' ? rDa.value : null;
+    S.dartRtData = rRt.status === 'fulfilled' ? rRt.value : null;
+    renderDartTab();
+    setStatus('live', 'DART feed active');
+  } catch (err) {
+    console.error('DART load error:', err);
+    setStatus('error', 'Connection error');
+  }
+}
+
+function buildDartHourly() {
+  const daRows = S.dartDaData?.rows ?? [];
+  const rtRows = S.dartRtData?.rows ?? [];
+  const rtMap  = new Map(rtRows.map(r => [String(r.datetime_beginning_ept).slice(0, 13), r]));
+  return daRows.map(da => {
+    const key = String(da.datetime_beginning_ept).slice(0, 13);
+    const rt  = rtMap.get(key);
+    return {
+      he: hourOf(da.datetime_beginning_ept) + 1,
+      da: da.total_lmp_da,
+      rt: rt?.total_lmp_rt ?? null,
+      dart: (da.total_lmp_da != null && rt?.total_lmp_rt != null) ? round2(rt.total_lmp_rt - da.total_lmp_da) : null,
+      daCong: da.congestion_price_da,
+      rtCong: rt?.congestion_price_rt ?? null
+    };
+  }).filter(r => r.da != null);
+}
+
+function renderDartTab() {
+  S.dartHourly = buildDartHourly();
+  const hourly = S.dartHourly;
+
+  el('dart-chart-title').textContent = `DART Spread — ${S.dartZone}`;
+  el('dart-kpi-zone').textContent    = S.dartZone;
+
+  const dartVals = hourly.map(r => r.dart).filter(v => v != null);
+  const avgDart  = dartVals.length ? round2(dartVals.reduce((s, v) => s + v, 0) / dartVals.length) : null;
+  const maxPos   = hourly.filter(r => r.dart > 0).reduce((m, r) => r.dart > (m?.dart ?? -Infinity) ? r : m, null);
+  const maxNeg   = hourly.filter(r => r.dart < 0).reduce((m, r) => r.dart < (m?.dart ??  Infinity) ? r : m, null);
+  const rtAbove  = hourly.filter(r => r.dart > 0).length;
+
+  const absAvg  = Math.abs(avgDart ?? 0);
+  const avgLabel = absAvg > 10 ? (avgDart > 0 ? 'RT↑HIGH' : 'DA↑HIGH') : absAvg > 3 ? 'MOD' : 'LOW';
+  const avgClass = absAvg > 10 ? 'warn' : '';
+
+  el('dart-kpi-avg').textContent             = avgDart != null ? fmt$(avgDart, true) : '--';
+  el('dart-kpi-avg-badge').textContent       = avgLabel;
+  el('dart-kpi-avg-badge').className         = 'kpi-delta ' + avgClass;
+  el('dart-kpi-max').textContent             = maxPos ? fmt$(maxPos.dart, true) : '--';
+  el('dart-kpi-max-sub').textContent         = maxPos ? `HE${String(maxPos.he).padStart(2,'0')}` : '--';
+  el('dart-kpi-overshoot').textContent       = maxNeg ? fmt$(maxNeg.dart, true) : '--';
+  el('dart-kpi-overshoot-sub').textContent   = maxNeg ? `HE${String(maxNeg.he).padStart(2,'0')}` : '--';
+  el('dart-kpi-hours').textContent           = rtAbove;
+
+  updateDartChart(hourly);
+  renderDartTable(hourly);
+}
+
+function updateDartChart(hourly) {
+  const c = CHARTS.dart;
+  if (!c) return;
+  c.data.labels                      = hourly.map(r => `HE${String(r.he).padStart(2,'0')}`);
+  c.data.datasets[0].data            = hourly.map(r => r.dart);
+  c.data.datasets[0].backgroundColor = hourly.map(r => r.dart == null ? 'transparent' : r.dart >= 0 ? '#378add' : '#d85a30');
+  c.data.datasets[1].data            = hourly.map(r => r.da);
+  c.data.datasets[2].data            = hourly.map(r => r.rt);
+  c.update();
+}
+
+let dartSortCol = 'he', dartSortDir = 1;
+
+function renderDartTable(hourly) {
+  const wrap = el('dart-table-wrap');
+  if (!hourly.length) { wrap.innerHTML = '<div class="empty">No data available.</div>'; return; }
+
+  const cols = [
+    { key: 'he',     label: 'HE' },
+    { key: 'da',     label: 'DA $/MWh' },
+    { key: 'rt',     label: 'RT $/MWh' },
+    { key: 'dart',   label: 'DART Spread' },
+    { key: 'daCong', label: 'DA Cong' },
+    { key: 'rtCong', label: 'RT Cong' }
+  ];
+
+  const sorted = [...hourly].sort((a, b) => ((a[dartSortCol] ?? 0) - (b[dartSortCol] ?? 0)) * dartSortDir);
+
+  const dartCls = v => { if (v == null) return 'dart-low'; if (v > 20) return 'dart-high'; if (v > 5) return 'dart-mod'; if (v < -5) return 'dart-neg'; return 'dart-low'; };
+
+  const hdr = cols.map(c => {
+    const arrow = c.key === dartSortCol ? (dartSortDir === 1 ? ' ↑' : ' ↓') : '';
+    return `<th data-col="${c.key}">${esc(c.label)}${arrow}</th>`;
+  }).join('');
+
+  const body = sorted.map(r => `
+    <tr>
+      <td>HE${String(r.he).padStart(2,'0')}</td>
+      <td>${r.da != null ? fmt$(r.da) : '--'}</td>
+      <td>${r.rt != null ? fmt$(r.rt) : '--'}</td>
+      <td class="${dartCls(r.dart)}">${r.dart != null ? fmt$(r.dart, true) : '--'}</td>
+      <td>${r.daCong != null ? fmt$(r.daCong) : '--'}</td>
+      <td>${r.rtCong != null ? fmt$(r.rtCong) : '--'}</td>
+    </tr>`).join('');
+
+  wrap.innerHTML = `<table class="dart-table"><thead><tr>${hdr}</tr></thead><tbody>${body}</tbody></table>`;
+  wrap.querySelectorAll('th[data-col]').forEach(th => th.addEventListener('click', () => {
+    const col = th.dataset.col;
+    if (col === dartSortCol) dartSortDir *= -1; else { dartSortCol = col; dartSortDir = 1; }
+    renderDartTable(S.dartHourly);
+  }));
+}
+
 /* ─── Mode toggle ─── */
 function setMode(mode) {
   S.mode = mode;
@@ -1914,6 +2484,35 @@ function prevDay()       { S.date  = dateAdd(S.date, -1);     loadAll(); }
 function nextDay()       { S.date  = dateAdd(S.date,  1);     loadAll(); }
 function goToday()       { S.date  = dateStr(new Date());      loadAll(); }
 function onDateInput()   { const v = el('date-input').value; if (v && /^\d{4}-\d{2}-\d{2}$/.test(v)) { S.date = v; loadAll(); } }
+
+/* ─── Tab bar wiring ─── */
+el('tabbtn-da').addEventListener('click',   () => switchTab('da'));
+el('tabbtn-rt').addEventListener('click',   () => switchTab('rt'));
+el('tabbtn-dart').addEventListener('click', () => switchTab('dart'));
+
+/* ─── RT wiring ─── */
+el('rt-gran-seg').addEventListener('click', e => {
+  const btn = e.target.closest('button[data-gran]');
+  if (!btn) return;
+  S.rtGranularity = btn.dataset.gran;
+  el('rtgran-hourly').classList.toggle('active', S.rtGranularity === 'hourly');
+  el('rtgran-fivemin').classList.toggle('active', S.rtGranularity === 'five_minute');
+  S.rtData = null; loadRtData();
+});
+el('rt-zone-select').addEventListener('change',  () => { S.rtZone = el('rt-zone-select').value; S.rtData = null; loadRtData(); });
+el('rt-date-input').addEventListener('change',   () => { const v = el('rt-date-input').value; if (v && /^\d{4}-\d{2}-\d{2}$/.test(v)) { S.rtDate = v; S.rtData = null; loadRtData(); } });
+el('rt-prev-day').addEventListener('click',  () => { S.rtDate = dateAdd(S.rtDate, -1); S.rtData = null; loadRtData(); });
+el('rt-next-day').addEventListener('click',  () => { S.rtDate = dateAdd(S.rtDate,  1); S.rtData = null; loadRtData(); });
+el('rt-today-btn').addEventListener('click', () => { S.rtDate = dateStr(new Date()); S.rtData = null; loadRtData(); });
+el('rt-refresh-btn').addEventListener('click', () => { S.rtData = null; loadRtData(); });
+
+/* ─── DART wiring ─── */
+el('dart-zone-select').addEventListener('change', () => { S.dartZone = el('dart-zone-select').value; S.dartDaData = null; loadDartData(); });
+el('dart-date-input').addEventListener('change',  () => { const v = el('dart-date-input').value; if (v && /^\d{4}-\d{2}-\d{2}$/.test(v)) { S.dartDate = v; S.dartDaData = null; loadDartData(); } });
+el('dart-prev-day').addEventListener('click',  () => { S.dartDate = dateAdd(S.dartDate, -1); S.dartDaData = null; loadDartData(); });
+el('dart-next-day').addEventListener('click',  () => { S.dartDate = dateAdd(S.dartDate,  1); S.dartDaData = null; loadDartData(); });
+el('dart-today-btn').addEventListener('click', () => { S.dartDate = dateStr(new Date()); S.dartDaData = null; loadDartData(); });
+el('dart-refresh-btn').addEventListener('click', () => { S.dartDaData = null; loadDartData(); });
 
 /* ─── Clock ─── */
 function tick() {

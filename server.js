@@ -66,8 +66,10 @@ const routes = {
   "/api/pjm/status": handleStatus,
   "/api/pjm/pnodes": handlePnodes,
   "/api/pjm/da-lmp/zone": handleZoneLmp,
+  "/api/pjm/rt-lmp/zone": handleZoneRtLmp,
   "/api/pjm/constraints/transmission": handleTransmissionConstraints,
   "/api/pjm/constraints/binding": handleBindingConstraints,
+  "/api/pjm/constraints/rt-binding": handleRtBindingConstraints,
   "/api/pjm/renewables": handleRenewables,
   "/api/analysis": handleAnalysis
 };
@@ -166,6 +168,72 @@ async function handleZoneLmp(_req, res, url) {
     summary: summarizeLmp(normalized),
     rows: normalized
   });
+}
+
+async function handleZoneRtLmp(_req, res, url) {
+  const zone = cleanUpper(url.searchParams.get("zone") || "PSEG");
+  const date = requireDate(url.searchParams.get("date"));
+  const gran = url.searchParams.get("granularity") || "hourly";
+  const pnodeId = Number(url.searchParams.get("pnode_id") || ZONE_PNODES[zone]);
+  if (!pnodeId) {
+    sendJson(res, 400, { error: `Unknown zone '${zone}'. Use pnode_id for custom locations.` });
+    return;
+  }
+  const feed = gran === "five_minute" ? "rt_fivemin_hrl_lmps" : "rt_hrl_lmps";
+  const rows = await getPjmRows(feed, {
+    row_is_current: "true",
+    pnode_id: String(pnodeId),
+    datetime_beginning_ept: marketDayRange(date)
+  });
+  const normalized = rows
+    .filter(row => isSelectedDate(row.datetime_beginning_ept, date))
+    .map(row => ({
+      datetime_beginning_ept: row.datetime_beginning_ept,
+      pnode_id: numeric(row.pnode_id),
+      pnode_name: row.pnode_name,
+      total_lmp_rt: numeric(row.total_lmp_rt),
+      system_energy_price_rt: numeric(row.system_energy_price_rt),
+      congestion_price_rt: numeric(row.congestion_price_rt),
+      marginal_loss_price_rt: numeric(row.marginal_loss_price_rt)
+    }))
+    .sort(byHour);
+  sendJson(res, 200, {
+    zone, pnodeId, date, granularity: gran,
+    summary: summarizeRtLmp(normalized),
+    rows: normalized
+  });
+}
+
+async function handleRtBindingConstraints(_req, res, url) {
+  const date = requireDate(url.searchParams.get("date"));
+  const rows = await getPjmRows("rt_marginal_value", {
+    datetime_beginning_ept: marketDayRange(date)
+  });
+  const filtered = rows
+    .filter(row => isSelectedDate(row.datetime_beginning_ept, date))
+    .map(row => ({
+      datetime_beginning_ept: row.datetime_beginning_ept,
+      monitored_facility: row.monitored_facility,
+      contingency_facility: row.contingency_facility,
+      shadow_price: numeric(row.shadow_price)
+    }))
+    .sort(byHour);
+  sendJson(res, 200, { date, summary: summarizeBinding(filtered), rows: filtered });
+}
+
+function summarizeRtLmp(rows) {
+  const values = rows.map(r => r.total_lmp_rt).filter(Number.isFinite);
+  const maxRow = rows.reduce((best, r) => (r.total_lmp_rt ?? -Infinity) > (best?.total_lmp_rt ?? -Infinity) ? r : best, null);
+  const minRow = rows.reduce((best, r) => (r.total_lmp_rt ?? Infinity)  < (best?.total_lmp_rt ??  Infinity) ? r : best, null);
+  return {
+    intervals: rows.length,
+    average_lmp: avg(values),
+    max_lmp: maxRow?.total_lmp_rt ?? null,
+    max_time: maxRow?.datetime_beginning_ept ?? null,
+    min_lmp: minRow?.total_lmp_rt ?? null,
+    min_time: minRow?.datetime_beginning_ept ?? null,
+    average_congestion: avg(rows.map(r => r.congestion_price_rt).filter(Number.isFinite))
+  };
 }
 
 async function handleTransmissionConstraints(_req, res, url) {
