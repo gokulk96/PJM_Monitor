@@ -1,0 +1,1043 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PJM Market Monitor</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #0a0d10;
+    --bg2: #0f1318;
+    --bg3: #151b22;
+    --bg4: #1c242e;
+    --border: rgba(255,255,255,0.07);
+    --border2: rgba(255,255,255,0.12);
+    --text: #e8edf2;
+    --text2: #7a8a9a;
+    --text3: #4a5a6a;
+    --accent: #00d4ff;
+    --accent2: #0099cc;
+    --green: #00e676;
+    --red: #ff4444;
+    --amber: #ffaa00;
+    --purple: #9b7fe8;
+    --mono: 'IBM Plex Mono', monospace;
+    --sans: 'IBM Plex Sans', sans-serif;
+  }
+
+  html { background: var(--bg); color: var(--text); font-family: var(--sans); font-size: 14px; line-height: 1.5; }
+  body { min-height: 100vh; overflow-x: hidden; }
+
+  body::before {
+    content: '';
+    position: fixed; inset: 0;
+    background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,0.03) 2px, rgba(0,0,0,0.03) 4px);
+    pointer-events: none; z-index: 1000;
+  }
+
+  header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 0 24px; height: 52px;
+    border-bottom: 1px solid var(--border);
+    background: var(--bg2);
+    position: sticky; top: 0; z-index: 100;
+  }
+  .logo { display: flex; align-items: center; gap: 10px; }
+  .logo-mark {
+    width: 28px; height: 28px; border: 1.5px solid var(--accent);
+    display: grid; place-items: center; font-family: var(--mono); font-size: 10px;
+    color: var(--accent); letter-spacing: 0.05em;
+  }
+  .logo-text { font-family: var(--mono); font-size: 13px; font-weight: 500; letter-spacing: 0.1em; color: var(--text); text-transform: uppercase; }
+  .logo-sub { font-size: 10px; color: var(--text3); font-family: var(--mono); letter-spacing: 0.08em; }
+
+  .header-right { display: flex; align-items: center; gap: 20px; }
+  .status-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--text3); transition: background 0.4s; }
+  .status-dot.live { background: var(--green); animation: pulse 2s infinite; }
+  .status-dot.error { background: var(--red); }
+  .status-dot.loading { background: var(--amber); animation: pulse-amber 0.8s infinite; }
+  @keyframes pulse { 0%,100% { opacity:1; box-shadow: 0 0 0 0 rgba(0,230,118,0.4); } 50% { opacity:0.8; box-shadow: 0 0 0 5px rgba(0,230,118,0); } }
+  @keyframes pulse-amber { 0%,100% { opacity:1; } 50% { opacity:0.4; } }
+  .status-label { font-family: var(--mono); font-size: 11px; color: var(--text2); display: flex; align-items: center; gap: 6px; }
+  #clock { font-family: var(--mono); font-size: 12px; color: var(--accent); }
+  .refresh-btn {
+    font-family: var(--mono); font-size: 11px; color: var(--text2);
+    border: 1px solid var(--border2); background: transparent;
+    padding: 5px 12px; cursor: pointer; letter-spacing: 0.05em;
+    transition: all 0.2s;
+  }
+  .refresh-btn:hover:not(:disabled) { color: var(--accent); border-color: var(--accent); }
+  .refresh-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  main { padding: 20px 24px; max-width: 1400px; margin: 0 auto; }
+
+  .date-bar {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 20px; padding-bottom: 14px;
+    border-bottom: 1px solid var(--border);
+    flex-wrap: wrap; gap: 12px;
+  }
+  .date-label { font-family: var(--mono); font-size: 11px; color: var(--text3); letter-spacing: 0.1em; text-transform: uppercase; }
+  .date-val { font-family: var(--mono); font-size: 13px; color: var(--text); }
+  .date-nav { display: flex; gap: 8px; }
+  .date-nav button {
+    font-family: var(--mono); font-size: 11px; color: var(--text2);
+    border: 1px solid var(--border); background: transparent;
+    padding: 4px 10px; cursor: pointer; transition: all 0.15s;
+  }
+  .date-nav button:hover { color: var(--text); border-color: var(--border2); }
+  .date-nav button.active { color: var(--accent); border-color: var(--accent); }
+
+  select.zone-select {
+    font-family: var(--mono); font-size: 11px; color: var(--text2);
+    border: 1px solid var(--border); background: var(--bg2);
+    padding: 4px 8px; cursor: pointer; transition: all 0.15s;
+    -webkit-appearance: none; appearance: none;
+  }
+  select.zone-select:focus { outline: none; border-color: var(--accent); color: var(--accent); }
+  select.zone-select option { background: var(--bg2); color: var(--text); }
+  .selector-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .selector-lbl { font-family: var(--mono); font-size: 10px; color: var(--text3); letter-spacing: 0.06em; }
+
+  .kpi-row { display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; margin-bottom: 20px; }
+  .kpi {
+    background: var(--bg2); border: 1px solid var(--border);
+    padding: 14px 16px; position: relative; overflow: hidden;
+  }
+  .kpi::before {
+    content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px;
+    background: var(--accent-color, var(--accent));
+  }
+  .kpi-label { font-family: var(--mono); font-size: 10px; color: var(--text3); letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 8px; }
+  .kpi-val { font-family: var(--mono); font-size: 22px; font-weight: 500; color: var(--kpi-color, var(--text)); line-height: 1; }
+  .kpi-sub { font-family: var(--mono); font-size: 10px; color: var(--text3); margin-top: 5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .kpi-badge {
+    position: absolute; top: 14px; right: 14px;
+    font-family: var(--mono); font-size: 10px; padding: 2px 7px;
+    background: var(--badge-bg, rgba(0,212,255,0.1));
+    color: var(--badge-color, var(--accent));
+    letter-spacing: 0.05em;
+  }
+
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px; }
+  .grid-3 { display: grid; grid-template-columns: 2fr 1fr; gap: 16px; margin-bottom: 16px; }
+
+  .panel {
+    background: var(--bg2); border: 1px solid var(--border);
+    display: flex; flex-direction: column;
+  }
+  .panel-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 12px 16px; border-bottom: 1px solid var(--border);
+    background: var(--bg3);
+  }
+  .panel-title { font-family: var(--mono); font-size: 11px; color: var(--text2); letter-spacing: 0.1em; text-transform: uppercase; }
+  .panel-tag { font-family: var(--mono); font-size: 10px; color: var(--text3); }
+  .panel-body { padding: 16px; flex: 1; }
+
+  .chart-wrap { position: relative; width: 100%; }
+
+  .data-table { width: 100%; border-collapse: collapse; }
+  .data-table th {
+    font-family: var(--mono); font-size: 10px; color: var(--text3);
+    letter-spacing: 0.08em; text-transform: uppercase;
+    padding: 6px 10px; text-align: left;
+    border-bottom: 1px solid var(--border);
+  }
+  .data-table td {
+    font-family: var(--mono); font-size: 12px; color: var(--text);
+    padding: 7px 10px; border-bottom: 1px solid var(--border);
+    vertical-align: middle;
+  }
+  .data-table tr:last-child td { border-bottom: none; }
+  .data-table tr:hover td { background: var(--bg3); }
+  .data-table td.num { text-align: right; }
+  .data-table td.zone { color: var(--accent); font-weight: 500; }
+
+  .sp-bar-wrap { display: flex; align-items: center; gap: 8px; }
+  .sp-bar { height: 4px; border-radius: 0; background: var(--red); flex-shrink: 0; }
+  .sp-val { font-family: var(--mono); font-size: 11px; color: var(--red); white-space: nowrap; }
+
+  .constraint-item {
+    padding: 10px 14px; border-bottom: 1px solid var(--border);
+    display: grid; grid-template-columns: 1fr auto; gap: 8px; align-items: start;
+  }
+  .constraint-item:last-child { border-bottom: none; }
+  .c-name { font-family: var(--mono); font-size: 11px; color: var(--text); line-height: 1.4; }
+  .c-meta { font-size: 11px; color: var(--text3); margin-top: 2px; }
+  .c-hours { font-family: var(--mono); font-size: 10px; color: var(--text3); text-align: right; white-space: nowrap; }
+  .c-shadow { font-family: var(--mono); font-size: 12px; color: var(--red); text-align: right; font-weight: 500; }
+  .c-territory {
+    display: inline-block; font-family: var(--mono); font-size: 9px;
+    padding: 1px 6px; letter-spacing: 0.05em;
+    border: 1px solid var(--border2); color: var(--text3); margin-top: 4px;
+  }
+
+  .analysis-body { padding: 16px 18px; overflow-y: auto; max-height: 360px; }
+  .analysis-ts { font-family: var(--mono); font-size: 10px; color: var(--text3); margin-bottom: 12px; letter-spacing: 0.06em; }
+  .analysis-text { font-size: 13px; color: var(--text2); line-height: 1.75; }
+  .analysis-text p { margin-bottom: 12px; }
+  .analysis-text p:last-child { margin-bottom: 0; }
+  .analysis-text strong { color: var(--text); font-weight: 500; }
+  .analysis-text .md-heading { color: var(--accent); font-family: var(--mono); font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; display: block; margin: 14px 0 6px; border-bottom: 1px solid var(--border); padding-bottom: 4px; }
+  .analysis-label {
+    display: inline-flex; align-items: center; gap: 6px;
+    font-family: var(--mono); font-size: 10px; color: var(--purple);
+    margin-bottom: 12px; letter-spacing: 0.06em;
+  }
+  .ai-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--purple); animation: pulse2 2.5s infinite; }
+  @keyframes pulse2 { 0%,100%{opacity:1} 50%{opacity:0.4} }
+
+  .btn-analysis {
+    font-family: var(--mono); font-size: 11px; color: var(--purple);
+    border: 1px solid rgba(155,127,232,0.4); background: transparent;
+    padding: 5px 14px; cursor: pointer; letter-spacing: 0.05em;
+    transition: all 0.2s;
+  }
+  .btn-analysis:hover:not(:disabled) { color: var(--text); border-color: var(--purple); background: rgba(155,127,232,0.1); }
+  .btn-analysis:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  .alert-item {
+    display: flex; gap: 12px; padding: 10px 14px;
+    border-bottom: 1px solid var(--border); align-items: flex-start;
+  }
+  .alert-item:last-child { border-bottom: none; }
+  .alert-icon { width: 6px; height: 6px; border-radius: 50%; margin-top: 5px; flex-shrink: 0; }
+  .alert-icon.red { background: var(--red); }
+  .alert-icon.amber { background: var(--amber); }
+  .alert-icon.green { background: var(--green); }
+  .alert-icon.dim { background: var(--text3); }
+  .alert-body { flex: 1; }
+  .alert-msg { font-size: 12px; color: var(--text); line-height: 1.4; }
+  .alert-time { font-family: var(--mono); font-size: 10px; color: var(--text3); margin-top: 3px; }
+
+  .spread-val {
+    font-family: var(--mono); font-size: 28px; font-weight: 500;
+    color: var(--amber); text-align: center; padding: 8px 0 4px;
+  }
+  .spread-label { font-family: var(--mono); font-size: 10px; color: var(--text3); text-align: center; letter-spacing: 0.08em; margin-bottom: 12px; }
+
+  .hm-cell:hover { opacity: 0.7; cursor: default; }
+
+  .empty-state {
+    font-family: var(--mono); font-size: 11px; color: var(--text3);
+    padding: 24px; text-align: center;
+  }
+  .error-state {
+    font-family: var(--mono); font-size: 11px; color: var(--red);
+    padding: 20px; text-align: center;
+  }
+
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .spinner {
+    width: 12px; height: 12px;
+    border: 2px solid var(--border2);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 0.7s linear infinite;
+    display: inline-block; vertical-align: middle; margin-right: 4px;
+  }
+
+  footer {
+    margin-top: 32px; padding: 16px 24px;
+    border-top: 1px solid var(--border);
+    display: flex; justify-content: space-between; align-items: center;
+  }
+  .footer-txt { font-family: var(--mono); font-size: 10px; color: var(--text3); letter-spacing: 0.06em; }
+
+  ::-webkit-scrollbar { width: 4px; height: 4px; }
+  ::-webkit-scrollbar-track { background: var(--bg); }
+  ::-webkit-scrollbar-thumb { background: var(--bg4); }
+
+  @keyframes fadeIn { from { opacity:0; transform: translateY(6px); } to { opacity:1; transform: translateY(0); } }
+  .panel { animation: fadeIn 0.4s ease both; }
+  .panel:nth-child(2) { animation-delay: 0.05s; }
+  .panel:nth-child(3) { animation-delay: 0.1s; }
+
+  .tag-live { font-family: var(--mono); font-size: 9px; color: var(--green); border: 1px solid rgba(0,230,118,0.3); padding: 2px 7px; letter-spacing: 0.06em; }
+  .tag-da { font-family: var(--mono); font-size: 9px; color: var(--accent); border: 1px solid rgba(0,212,255,0.3); padding: 2px 7px; letter-spacing: 0.06em; }
+
+  @media (max-width: 900px) {
+    .kpi-row { grid-template-columns: repeat(3, 1fr); }
+    .grid-2, .grid-3 { grid-template-columns: 1fr; }
+  }
+  @media (max-width: 600px) {
+    .kpi-row { grid-template-columns: repeat(2, 1fr); }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">
+    <div class="logo-mark">PJM</div>
+    <div>
+      <div class="logo-text">Market Monitor</div>
+      <div class="logo-sub">Day-Ahead LMP Surveillance</div>
+    </div>
+  </div>
+  <div class="header-right">
+    <div class="status-label">
+      <div id="status-dot" class="status-dot loading"></div>
+      <span id="status-text">Connecting…</span>
+    </div>
+    <div id="clock">--:--:--</div>
+    <button id="refresh-btn" class="refresh-btn" onclick="refreshData()" disabled>↺ REFRESH</button>
+  </div>
+</header>
+
+<main>
+
+  <div class="date-bar">
+    <div>
+      <div class="date-label">Market date</div>
+      <div class="date-val" id="market-date">-- · Day-Ahead Settlement</div>
+    </div>
+    <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;">
+      <div class="selector-row">
+        <span class="selector-lbl">Z1</span>
+        <select id="zone1-select" class="zone-select" onchange="onZoneChange()"></select>
+        <span class="selector-lbl">vs</span>
+        <select id="zone2-select" class="zone-select" onchange="onZoneChange()"></select>
+        <span class="selector-lbl">AREA</span>
+        <select id="area-select" class="zone-select" onchange="onAreaChange()"></select>
+      </div>
+      <span class="tag-da">DA</span>
+      <span style="font-family:var(--mono);font-size:11px;color:var(--text3);">Next update: <span id="next-update" style="color:var(--text2);">--</span></span>
+      <div class="date-nav">
+        <button onclick="prevDay()">◀ prev</button>
+        <button id="btn-today" onclick="goToday()">today</button>
+        <button onclick="nextDay()">next ▶</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- KPI ROW -->
+  <div class="kpi-row">
+    <div class="kpi" style="--accent-color:#00d4ff;">
+      <div class="kpi-label" id="kpi-z1-label">Zone 1 Avg LMP</div>
+      <div class="kpi-val" id="kpi-z1-avg" style="color:var(--accent);">--</div>
+      <div class="kpi-sub" id="kpi-z1-peak">--</div>
+      <div class="kpi-badge" id="kpi-z1-badge">--</div>
+    </div>
+    <div class="kpi" style="--accent-color:#00e676;">
+      <div class="kpi-label" id="kpi-z2-label">Zone 2 Avg LMP</div>
+      <div class="kpi-val" id="kpi-z2-avg" style="color:var(--green);">--</div>
+      <div class="kpi-sub" id="kpi-z2-peak">--</div>
+      <div class="kpi-badge" id="kpi-z2-badge" style="background:rgba(0,230,118,0.1);color:var(--green);">--</div>
+    </div>
+    <div class="kpi" style="--accent-color:#ffaa00;">
+      <div class="kpi-label" id="kpi-spread-label">Z1–Z2 Spread</div>
+      <div class="kpi-val" id="kpi-spread" style="color:var(--amber);">--</div>
+      <div class="kpi-sub" id="kpi-spread-sub">--</div>
+      <div class="kpi-badge" id="kpi-spread-badge" style="background:rgba(255,170,0,0.1);color:var(--amber);">--</div>
+    </div>
+    <div class="kpi" style="--accent-color:#ff4444;">
+      <div class="kpi-label">Binding Constraints</div>
+      <div class="kpi-val" id="kpi-binding-count" style="color:var(--red);">--</div>
+      <div class="kpi-sub" id="kpi-binding-sub">--</div>
+      <div class="kpi-badge" id="kpi-binding-badge" style="background:rgba(255,68,68,0.1);color:var(--red);">--</div>
+    </div>
+    <div class="kpi" style="--accent-color:#9b7fe8;">
+      <div class="kpi-label">Max Shadow Price</div>
+      <div class="kpi-val" id="kpi-shadow" style="color:var(--purple);">--</div>
+      <div class="kpi-sub" id="kpi-shadow-sub">--</div>
+      <div class="kpi-badge" id="kpi-shadow-badge" style="background:rgba(155,127,232,0.1);color:var(--purple);">--</div>
+    </div>
+  </div>
+
+  <!-- LMP CHART + SPREAD -->
+  <div class="grid-3" style="margin-bottom:16px;">
+    <div class="panel">
+      <div class="panel-header">
+        <span class="panel-title" id="lmp-chart-title">Hourly DA LMP — Zone Comparison</span>
+        <span class="panel-tag">$/MWh · HE00–HE23</span>
+      </div>
+      <div class="panel-body">
+        <div style="display:flex;gap:16px;margin-bottom:12px;font-family:var(--mono);font-size:10px;color:var(--text3);">
+          <span style="display:flex;align-items:center;gap:5px;"><span style="display:inline-block;width:16px;height:2px;background:var(--accent);"></span><span id="legend-z1">Zone 1 LMP</span></span>
+          <span style="display:flex;align-items:center;gap:5px;"><span style="display:inline-block;width:16px;height:2px;background:var(--green);"></span><span id="legend-z2">Zone 2 LMP</span></span>
+          <span style="display:flex;align-items:center;gap:5px;"><span style="display:inline-block;width:16px;height:2px;background:var(--text3);border-top:2px dashed var(--text3);"></span>System energy</span>
+        </div>
+        <div class="chart-wrap" style="height:240px;"><canvas id="lmpChart"></canvas></div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-header">
+        <span class="panel-title" id="spread-chart-title">Z1–Z2 Basis Spread</span>
+        <span class="panel-tag">$/MWh</span>
+      </div>
+      <div class="panel-body" style="padding:12px;">
+        <div class="spread-val" id="spread-display">--</div>
+        <div class="spread-label" id="spread-sublabel">24H AVERAGE SPREAD</div>
+        <div class="chart-wrap" style="height:170px;"><canvas id="spreadChart"></canvas></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- CONGESTION + BINDING CONSTRAINTS -->
+  <div class="grid-2" style="margin-bottom:16px;">
+    <div class="panel">
+      <div class="panel-header">
+        <span class="panel-title">Congestion Component</span>
+        <span class="panel-tag">$/MWh by hour</span>
+      </div>
+      <div class="panel-body">
+        <div style="display:flex;gap:16px;margin-bottom:12px;font-family:var(--mono);font-size:10px;color:var(--text3);">
+          <span style="display:flex;align-items:center;gap:5px;"><span style="display:inline-block;width:10px;height:10px;background:rgba(0,212,255,0.6);"></span><span id="cong-lbl-z1">Zone 1</span></span>
+          <span style="display:flex;align-items:center;gap:5px;"><span style="display:inline-block;width:10px;height:10px;background:rgba(0,230,118,0.6);"></span><span id="cong-lbl-z2">Zone 2</span></span>
+        </div>
+        <div class="chart-wrap" style="height:210px;"><canvas id="congChart"></canvas></div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-header">
+        <span class="panel-title">Top Binding Constraints</span>
+        <span class="panel-tag">by peak shadow price</span>
+      </div>
+      <div id="binding-list" style="overflow-y:auto;max-height:280px;">
+        <div class="empty-state">Awaiting data…</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- CONSTRAINT HEATMAP -->
+  <div class="panel" style="margin-bottom:16px;">
+    <div class="panel-header">
+      <span class="panel-title">Constraint Binding Heatmap — Shadow Price by Hour</span>
+      <span class="panel-tag">darker = higher magnitude</span>
+    </div>
+    <div class="panel-body" style="overflow-x:auto;">
+      <div id="heatmap"><div class="empty-state">Awaiting data…</div></div>
+    </div>
+  </div>
+
+  <!-- RENEWABLES + AI ANALYSIS -->
+  <div class="grid-2" style="margin-bottom:16px;">
+    <div class="panel">
+      <div class="panel-header">
+        <span class="panel-title">Renewable Generation — <span id="area-label">RTO</span></span>
+        <span class="panel-tag">MW actual</span>
+      </div>
+      <div class="panel-body">
+        <div style="display:flex;gap:16px;margin-bottom:12px;font-family:var(--mono);font-size:10px;color:var(--text3);">
+          <span style="display:flex;align-items:center;gap:5px;"><span style="display:inline-block;width:10px;height:10px;background:rgba(255,170,0,0.7);"></span>Solar</span>
+          <span style="display:flex;align-items:center;gap:5px;"><span style="display:inline-block;width:10px;height:10px;background:rgba(0,212,255,0.5);"></span>Wind</span>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:14px;">
+          <div style="background:var(--bg3);padding:10px 12px;">
+            <div style="font-family:var(--mono);font-size:9px;color:var(--text3);letter-spacing:0.08em;margin-bottom:4px;">SOLAR PEAK</div>
+            <div id="solar-peak" style="font-family:var(--mono);font-size:16px;color:var(--amber);">-- MW</div>
+          </div>
+          <div style="background:var(--bg3);padding:10px 12px;">
+            <div style="font-family:var(--mono);font-size:9px;color:var(--text3);letter-spacing:0.08em;margin-bottom:4px;">WIND PEAK</div>
+            <div id="wind-peak" style="font-family:var(--mono);font-size:16px;color:var(--accent);">-- MW</div>
+          </div>
+          <div style="background:var(--bg3);padding:10px 12px;">
+            <div style="font-family:var(--mono);font-size:9px;color:var(--text3);letter-spacing:0.08em;margin-bottom:4px;">TOTAL MWh</div>
+            <div id="total-mwh" style="font-family:var(--mono);font-size:16px;color:var(--text);">--</div>
+          </div>
+        </div>
+        <div class="chart-wrap" style="height:170px;"><canvas id="genChart"></canvas></div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-header">
+        <span class="panel-title">AI Market Analysis</span>
+        <div style="display:flex;align-items:center;gap:8px;">
+          <span class="panel-tag" id="analysis-model-tag">OpenRouter</span>
+          <button id="btn-analysis" class="btn-analysis" onclick="triggerAnalysis()">▶ RUN</button>
+        </div>
+      </div>
+      <div id="analysis-content">
+        <div class="empty-state" style="line-height:1.9;">
+          Load market data, then click<br>
+          <strong style="color:var(--purple);">▶ RUN</strong> to generate AI analysis.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ALERT FEED -->
+  <div class="panel" style="margin-bottom:16px;">
+    <div class="panel-header">
+      <span class="panel-title">Event Feed</span>
+      <span class="panel-tag">auto-generated · today</span>
+    </div>
+    <div id="alert-feed">
+      <div class="alert-item">
+        <div class="alert-icon dim"></div>
+        <div class="alert-body">
+          <div class="alert-msg" style="color:var(--text3);">Loading market data…</div>
+          <div class="alert-time">--</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</main>
+
+<footer>
+  <div class="footer-txt">PJM MARKET MONITOR · DA SURVEILLANCE · DATA: PJM DATA MINER 2</div>
+  <div class="footer-txt" id="footer-ts">Last refresh: --</div>
+</footer>
+
+<script>
+/* ─── State ─── */
+const S = {
+  date: dateStr(new Date()),
+  zone1: 'DOM',
+  zone2: 'AEP',
+  area: 'RTO',
+  lmp1: null,
+  lmp2: null,
+  binding: null,
+  transmission: null,
+  renewables: null,
+  loading: false
+};
+
+/* ─── Utils ─── */
+function dateStr(d) { return d.toISOString().slice(0, 10); }
+
+function dateAdd(s, n) {
+  const d = new Date(s + 'T12:00:00');
+  d.setDate(d.getDate() + n);
+  return dateStr(d);
+}
+
+function el(id) { return document.getElementById(id); }
+
+function esc(s) {
+  return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function fmt$(n, forceSign = false) {
+  if (n == null || !Number.isFinite(n)) return '--';
+  const abs = Math.abs(n).toFixed(2);
+  if (forceSign) return (n >= 0 ? '+$' : '-$') + abs;
+  return (n < 0 ? '-$' : '$') + abs;
+}
+
+function fmtMW(n) {
+  if (n == null || !Number.isFinite(n)) return '-- MW';
+  return Math.round(n).toLocaleString() + ' MW';
+}
+
+function hourOf(dt) {
+  const s = String(dt ?? '');
+  const h = parseInt(s.length >= 13 ? s.slice(11, 13) : '0', 10);
+  return Number.isFinite(h) ? h : 0;
+}
+
+function hourLabel(dt) {
+  if (!dt) return '--';
+  return 'HE' + String(hourOf(dt)).padStart(2, '0');
+}
+
+function round2(n) { return Math.round(n * 100) / 100; }
+
+function trunc(s, n) {
+  const str = String(s ?? '');
+  return str.length > n ? str.slice(0, n - 1) + '…' : str;
+}
+
+const HOURS = Array.from({ length: 24 }, (_, i) => 'H' + i);
+
+/* ─── API ─── */
+async function apiFetch(path) {
+  const r = await fetch(path);
+  if (!r.ok) throw new Error(`HTTP ${r.status}`);
+  return r.json();
+}
+
+async function loadStatus() {
+  const d = await apiFetch('/api/pjm/status');
+  const zones = d.zones ?? [];
+  const areas = d.renewableAreas ?? ['RTO'];
+
+  ['zone1-select', 'zone2-select'].forEach((id, i) => {
+    const sel = el(id);
+    const current = i === 0 ? S.zone1 : S.zone2;
+    sel.innerHTML = zones.map(z =>
+      `<option value="${esc(z)}"${z === current ? ' selected' : ''}>${esc(z)}</option>`
+    ).join('');
+  });
+
+  const areaSel = el('area-select');
+  areaSel.innerHTML = areas.map(a =>
+    `<option value="${esc(a)}"${a === S.area ? ' selected' : ''}>${esc(a)}</option>`
+  ).join('');
+
+  if (d.openRouterConfigured) {
+    el('analysis-model-tag').textContent = trunc(d.openRouterModel ?? 'OpenRouter', 28);
+  } else {
+    el('analysis-model-tag').textContent = 'No API key';
+    el('btn-analysis').disabled = true;
+    el('btn-analysis').title = 'OPENROUTER_API_KEY not configured on server';
+  }
+}
+
+async function loadAll() {
+  if (S.loading) return;
+  S.loading = true;
+  setStatus('loading', 'Loading…');
+  el('refresh-btn').disabled = true;
+  el('market-date').textContent = `${S.date} · Day-Ahead Settlement`;
+
+  try {
+    await loadStatus();
+
+    const [r1, r2, rb, rt, rn] = await Promise.allSettled([
+      apiFetch(`/api/pjm/da-lmp/zone?zone=${encodeURIComponent(S.zone1)}&date=${S.date}`),
+      apiFetch(`/api/pjm/da-lmp/zone?zone=${encodeURIComponent(S.zone2)}&date=${S.date}`),
+      apiFetch(`/api/pjm/constraints/binding?date=${S.date}`),
+      apiFetch(`/api/pjm/constraints/transmission?date=${S.date}`),
+      apiFetch(`/api/pjm/renewables?date=${S.date}&area=${encodeURIComponent(S.area)}`)
+    ]);
+
+    S.lmp1        = r1.status === 'fulfilled' ? r1.value : null;
+    S.lmp2        = r2.status === 'fulfilled' ? r2.value : null;
+    S.binding     = rb.status === 'fulfilled' ? rb.value : null;
+    S.transmission= rt.status === 'fulfilled' ? rt.value : null;
+    S.renewables  = rn.status === 'fulfilled' ? rn.value : null;
+
+    render();
+    setStatus('live', 'DA feed active');
+  } catch (err) {
+    console.error('Load error:', err);
+    setStatus('error', 'Connection error');
+  } finally {
+    S.loading = false;
+    el('refresh-btn').disabled = false;
+    el('footer-ts').textContent = 'Last refresh: ' + new Date().toLocaleTimeString();
+  }
+}
+
+function setStatus(state, text) {
+  const dot = el('status-dot');
+  dot.className = 'status-dot ' + state;
+  el('status-text').textContent = text;
+}
+
+/* ─── Render ─── */
+function render() {
+  const z1 = S.zone1, z2 = S.zone2;
+
+  el('lmp-chart-title').textContent   = `Hourly DA LMP — ${z1} vs ${z2}`;
+  el('spread-chart-title').textContent= `${z1}–${z2} Basis Spread`;
+  el('kpi-z1-label').textContent      = `${z1} Avg LMP`;
+  el('kpi-z2-label').textContent      = `${z2} Avg LMP`;
+  el('kpi-spread-label').textContent  = `${z1}–${z2} Spread`;
+  el('legend-z1').textContent         = `${z1} LMP`;
+  el('legend-z2').textContent         = `${z2} LMP`;
+  el('cong-lbl-z1').textContent       = z1;
+  el('cong-lbl-z2').textContent       = z2;
+  el('area-label').textContent        = S.area;
+
+  renderKpis();
+  updateCharts();
+  renderBinding();
+  renderHeatmap();
+  renderRenewableStats();
+  renderAlerts();
+}
+
+function renderKpis() {
+  const s1 = S.lmp1?.summary;
+  const s2 = S.lmp2?.summary;
+
+  el('kpi-z1-avg').textContent  = s1 ? fmt$(s1.average_lmp) : '--';
+  el('kpi-z1-badge').textContent= S.zone1;
+  el('kpi-z1-peak').textContent = s1 ? `Peak ${fmt$(s1.max_lmp)} @ ${hourLabel(s1.max_hour)}` : '--';
+
+  el('kpi-z2-avg').textContent  = s2 ? fmt$(s2.average_lmp) : '--';
+  el('kpi-z2-badge').textContent= S.zone2;
+  el('kpi-z2-peak').textContent = s2 ? `Peak ${fmt$(s2.max_lmp)} @ ${hourLabel(s2.max_hour)}` : '--';
+
+  if (s1 && s2) {
+    const spread = round2((s1.average_lmp ?? 0) - (s2.average_lmp ?? 0));
+    el('kpi-spread').textContent    = fmt$(spread);
+    el('spread-display').textContent= fmt$(spread);
+    el('kpi-spread-sub').textContent= spread > 0 ? `${S.zone1} premium` : `${S.zone2} premium`;
+    el('kpi-spread-badge').textContent = Math.abs(spread) > 8 ? '↑ HIGH' : Math.abs(spread) > 4 ? '↑ MOD' : '↔ LOW';
+  } else {
+    ['kpi-spread','spread-display','kpi-spread-sub','kpi-spread-badge'].forEach(id => el(id).textContent = '--');
+  }
+
+  const bs = S.binding?.summary;
+  if (bs) {
+    el('kpi-binding-count').textContent = bs.records ?? '--';
+    const uniq = bs.top_monitored?.length ?? 0;
+    el('kpi-binding-sub').textContent  = `${uniq} unique facilit${uniq !== 1 ? 'ies' : 'y'}`;
+    el('kpi-binding-badge').textContent= (bs.records ?? 0) > 50 ? '⚠ ALERT' : (bs.records ?? 0) > 10 ? '⚠ WATCH' : '✓ LOW';
+
+    const maxAbs = bs.max_abs_shadow_price;
+    el('kpi-shadow').textContent    = maxAbs != null ? `-$${Math.round(maxAbs)}` : '--';
+    const top = bs.top_constraints?.[0];
+    el('kpi-shadow-sub').textContent= top ? trunc(top.monitored_facility, 30) : '--';
+    el('kpi-shadow-badge').textContent = (maxAbs ?? 0) > 500 ? 'SEVERE' : (maxAbs ?? 0) > 100 ? 'HIGH' : 'MOD';
+  }
+}
+
+/* ─── Charts ─── */
+const CHARTS = {};
+
+const gridStyle = {
+  grid:  { color: 'rgba(255,255,255,0.05)' },
+  ticks: { font: { family: "'IBM Plex Mono',monospace", size: 10 }, color: '#4a5a6a' }
+};
+
+function baseOpts(yFmt, ttFmt) {
+  return {
+    responsive: true, maintainAspectRatio: false,
+    animation: { duration: 300 },
+    interaction: { mode: 'index', intersect: false },
+    plugins: {
+      legend: { display: false },
+      tooltip: {
+        backgroundColor: '#0f1318', borderColor: 'rgba(255,255,255,0.1)', borderWidth: 1,
+        titleFont: { family: "'IBM Plex Mono',monospace", size: 10 },
+        bodyFont:  { family: "'IBM Plex Mono',monospace", size: 11 },
+        callbacks: { label: ctx => ttFmt(ctx) }
+      }
+    },
+    scales: {
+      x: { ...gridStyle },
+      y: { ...gridStyle, ticks: { ...gridStyle.ticks, callback: yFmt } }
+    }
+  };
+}
+
+function initCharts() {
+  CHARTS.lmp = new Chart(el('lmpChart'), {
+    type: 'line',
+    data: { labels: HOURS, datasets: [
+      { label: 'Zone 1 LMP', data: [], borderColor: '#00d4ff', backgroundColor: 'rgba(0,212,255,0.05)', borderWidth: 2, pointRadius: 0, fill: true, tension: 0.3 },
+      { label: 'Zone 2 LMP', data: [], borderColor: '#00e676', backgroundColor: 'rgba(0,230,118,0.04)', borderWidth: 2, pointRadius: 0, fill: true, tension: 0.3 },
+      { label: 'Sys energy',  data: [], borderColor: '#4a5a6a', borderWidth: 1.5, borderDash: [4,3], pointRadius: 0, fill: false, tension: 0.3 }
+    ]},
+    options: baseOpts(v => '$' + v, ctx => ` ${ctx.dataset.label}: $${ctx.parsed.y.toFixed(2)}`)
+  });
+
+  CHARTS.spread = new Chart(el('spreadChart'), {
+    type: 'bar',
+    data: { labels: HOURS, datasets: [{ label: 'Spread', data: [], backgroundColor: [], borderRadius: 0 }]},
+    options: baseOpts(v => '$' + v, ctx => ` Spread: $${ctx.parsed.y.toFixed(2)}`)
+  });
+
+  CHARTS.cong = new Chart(el('congChart'), {
+    type: 'bar',
+    data: { labels: HOURS, datasets: [
+      { label: 'Zone 1 cong', data: [], backgroundColor: 'rgba(0,212,255,0.65)', borderRadius: 0 },
+      { label: 'Zone 2 cong', data: [], backgroundColor: 'rgba(0,230,118,0.55)', borderRadius: 0 }
+    ]},
+    options: baseOpts(v => '$' + v, ctx => ` ${ctx.dataset.label}: $${ctx.parsed.y.toFixed(2)}`)
+  });
+
+  CHARTS.gen = new Chart(el('genChart'), {
+    type: 'line',
+    data: { labels: HOURS, datasets: [
+      { label: 'Solar', data: [], borderColor: '#ffaa00', backgroundColor: 'rgba(255,170,0,0.12)', borderWidth: 2, pointRadius: 0, fill: true, tension: 0.4 },
+      { label: 'Wind',  data: [], borderColor: 'rgba(0,212,255,0.7)', backgroundColor: 'rgba(0,212,255,0.06)', borderWidth: 2, pointRadius: 0, fill: true, tension: 0.3 }
+    ]},
+    options: baseOpts(v => (v / 1000).toFixed(1) + 'GW', ctx => ` ${ctx.dataset.label}: ${ctx.parsed.y.toLocaleString()} MW`)
+  });
+}
+
+function rowsByHour(data) {
+  const arr = new Array(24).fill(null);
+  for (const row of (data?.rows ?? [])) arr[hourOf(row.datetime_beginning_ept)] = row;
+  return arr;
+}
+
+function updateCharts() {
+  const h1 = rowsByHour(S.lmp1);
+  const h2 = rowsByHour(S.lmp2);
+
+  const lmp1  = h1.map(r => r?.total_lmp_da ?? null);
+  const lmp2  = h2.map(r => r?.total_lmp_da ?? null);
+  const sysE  = h1.map(r => r?.system_energy_price_da ?? null);
+  const cong1 = h1.map(r => r?.congestion_price_da ?? null);
+  const cong2 = h2.map(r => r?.congestion_price_da ?? null);
+  const spread= lmp1.map((v, i) => (v != null && lmp2[i] != null) ? round2(v - lmp2[i]) : null);
+
+  const c = CHARTS;
+
+  c.lmp.data.datasets[0].data  = lmp1;
+  c.lmp.data.datasets[0].label = `${S.zone1} LMP`;
+  c.lmp.data.datasets[1].data  = lmp2;
+  c.lmp.data.datasets[1].label = `${S.zone2} LMP`;
+  c.lmp.data.datasets[2].data  = sysE;
+  c.lmp.update();
+
+  c.spread.data.datasets[0].data = spread;
+  c.spread.data.datasets[0].backgroundColor = spread.map(v =>
+    v == null ? 'transparent' : Math.abs(v) > 8 ? 'rgba(255,170,0,0.85)' : Math.abs(v) > 4 ? 'rgba(255,170,0,0.5)' : 'rgba(255,170,0,0.25)'
+  );
+  c.spread.update();
+
+  c.cong.data.datasets[0].data  = cong1;
+  c.cong.data.datasets[0].label = `${S.zone1} cong`;
+  c.cong.data.datasets[1].data  = cong2;
+  c.cong.data.datasets[1].label = `${S.zone2} cong`;
+  c.cong.update();
+
+  const genH = new Array(24).fill(null).map(() => ({ solar: null, wind: null }));
+  for (const row of (S.renewables?.rows ?? [])) {
+    const h = hourOf(row.datetime_beginning_ept);
+    genH[h].solar = row.solar_generation_mw ?? null;
+    genH[h].wind  = row.wind_generation_mw  ?? null;
+  }
+  c.gen.data.datasets[0].data = genH.map(r => r.solar);
+  c.gen.data.datasets[1].data = genH.map(r => r.wind);
+  c.gen.update();
+}
+
+/* ─── Binding list ─── */
+function renderBinding() {
+  const rows = S.binding?.rows ?? [];
+  if (!rows.length) {
+    el('binding-list').innerHTML = '<div class="empty-state">No binding constraints for this date.</div>';
+    return;
+  }
+
+  // Aggregate per facility: track hours and worst shadow price
+  const map = new Map();
+  for (const row of rows) {
+    const key = row.monitored_facility ?? 'Unknown';
+    const sp  = Math.abs(row.shadow_price ?? 0);
+    if (!map.has(key)) {
+      map.set(key, { ...row, hours: 1, peakAbs: sp });
+    } else {
+      const e = map.get(key);
+      e.hours++;
+      if (sp > e.peakAbs) { e.peakAbs = sp; e.shadow_price = row.shadow_price; }
+    }
+  }
+
+  const top = [...map.values()]
+    .sort((a, b) => b.peakAbs - a.peakAbs)
+    .slice(0, 10);
+
+  el('binding-list').innerHTML = top.map(r => `
+    <div class="constraint-item">
+      <div>
+        <div class="c-name">${esc(r.monitored_facility ?? 'Unknown')}</div>
+        <div class="c-meta">${esc(r.contingency_facility ?? 'Base case')} · <span class="c-territory">${esc(r.monitored_facility?.split(/[\s_]/)[0] ?? '')}</span></div>
+      </div>
+      <div>
+        <div class="c-shadow">${fmt$(r.shadow_price)}</div>
+        <div class="c-hours">${r.hours} hr${r.hours !== 1 ? 's' : ''}</div>
+      </div>
+    </div>`).join('');
+}
+
+/* ─── Heatmap ─── */
+function renderHeatmap() {
+  const rows = S.binding?.rows ?? [];
+  if (!rows.length) {
+    el('heatmap').innerHTML = '<div class="empty-state">No constraint data.</div>';
+    return;
+  }
+
+  const facilityMap = new Map();
+  for (const row of rows) {
+    const name = row.monitored_facility ?? 'Unknown';
+    if (!facilityMap.has(name)) facilityMap.set(name, { name, data: {}, total: 0 });
+    const h  = hourOf(row.datetime_beginning_ept);
+    const sp = Math.abs(row.shadow_price ?? 0);
+    const f  = facilityMap.get(name);
+    if ((f.data[h] ?? 0) < sp) { f.total += sp - (f.data[h] ?? 0); f.data[h] = sp; }
+  }
+
+  const constraints = [...facilityMap.values()]
+    .sort((a, b) => b.total - a.total)
+    .slice(0, 10);
+
+  const maxVal = Math.max(...constraints.flatMap(c => Object.values(c.data)));
+
+  let html = `<div style="display:grid;grid-template-columns:130px repeat(24,1fr);gap:1px;font-family:'IBM Plex Mono',monospace;">`;
+  html += `<div style="font-size:9px;color:#4a5a6a;padding:3px 0;"></div>`;
+  HOURS.forEach(h => { html += `<div style="font-size:9px;color:#4a5a6a;text-align:center;padding:3px 0;">${esc(h)}</div>`; });
+
+  for (const c of constraints) {
+    const label = trunc(c.name, 18);
+    html += `<div style="font-size:9px;color:#7a8a9a;padding:4px 4px 4px 0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;align-self:center;" title="${esc(c.name)}">${esc(label)}</div>`;
+    for (let h = 0; h < 24; h++) {
+      const v = c.data[h] ?? 0;
+      const t = maxVal > 0 ? Math.min(1, v / maxVal) : 0;
+      const bg = v > 0 ? `rgba(${Math.round(255*t)},${Math.round(68*t)},${Math.round(68*t)},${(0.15 + t * 0.7).toFixed(2)})` : 'transparent';
+      const txt = v >= 10 ? Math.round(v) : v > 0 ? v.toFixed(1) : '';
+      const tc  = v > maxVal * 0.5 ? '#ff9999' : v > maxVal * 0.2 ? '#ffaaaa' : '#ff6666';
+      html += `<div style="height:22px;background:${bg};display:flex;align-items:center;justify-content:center;font-size:8px;color:${tc};" title="${esc(c.name)} H${h}: ${v ? '-$' + v.toFixed(0) : 'none'}">${txt}</div>`;
+    }
+  }
+  html += '</div>';
+  el('heatmap').innerHTML = html;
+}
+
+/* ─── Renewable stats ─── */
+function renderRenewableStats() {
+  const s = S.renewables?.summary;
+  el('solar-peak').textContent = s ? fmtMW(s.peak_solar_mw)  : '-- MW';
+  el('wind-peak').textContent  = s ? fmtMW(s.peak_wind_mw)   : '-- MW';
+
+  if (S.renewables?.rows?.length) {
+    const total = S.renewables.rows.reduce((sum, r) => sum + (r.total_renewable_mw ?? 0), 0);
+    el('total-mwh').textContent = Math.round(total).toLocaleString();
+  } else {
+    el('total-mwh').textContent = '--';
+  }
+}
+
+/* ─── Alert feed ─── */
+function renderAlerts() {
+  const alerts = [];
+  const ts = new Date().toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit' }) + ' EPT';
+
+  // Publish info
+  const s1 = S.lmp1?.summary, s2 = S.lmp2?.summary, bs = S.binding?.summary;
+  alerts.push({ color: 'green', msg: `DA data loaded for ${esc(S.date)}. ${esc(S.zone1)} avg ${fmt$(s1?.average_lmp)} · ${esc(S.zone2)} avg ${fmt$(s2?.average_lmp)}.`, time: `${ts} · severity: INFO` });
+
+  // LMP spike
+  if (s1?.max_lmp > 80) alerts.unshift({ color: 'red',
+    msg: `${esc(S.zone1)} LMP spike: <strong>${fmt$(s1.max_lmp)}/MWh</strong> at ${hourLabel(s1.max_hour)} — exceeded $80 threshold.`,
+    time: `${ts} · severity: HIGH` });
+
+  // Shadow price extremes
+  const maxAbs = bs?.max_abs_shadow_price ?? 0;
+  if (maxAbs > 500) {
+    const top = bs?.top_constraints?.[0];
+    alerts.unshift({ color: 'red',
+      msg: `Extreme shadow price <strong>-$${Math.round(maxAbs)}/MWh</strong>${top ? ` on ${esc(trunc(top.monitored_facility, 40))}` : ''}.`,
+      time: `${ts} · severity: CRITICAL` });
+  } else if (maxAbs > 100) {
+    alerts.unshift({ color: 'red',
+      msg: `High shadow price detected: <strong>-$${Math.round(maxAbs)}/MWh</strong>. ${bs?.records ?? 0} binding records.`,
+      time: `${ts} · severity: HIGH` });
+  }
+
+  // Persistent constraints (≥12 hrs)
+  const hoursMap = {};
+  for (const r of (S.binding?.rows ?? [])) {
+    const k = r.monitored_facility ?? 'Unknown';
+    hoursMap[k] = (hoursMap[k] ?? 0) + 1;
+  }
+  Object.entries(hoursMap)
+    .filter(([, h]) => h >= 12)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 2)
+    .forEach(([name, hours]) => {
+      alerts.push({ color: 'amber',
+        msg: `${esc(trunc(name, 50))} binding for <strong>${hours} consecutive hours</strong>.`,
+        time: `${ts} · severity: MODERATE` });
+    });
+
+  el('alert-feed').innerHTML = alerts.slice(0, 6).map(a => `
+    <div class="alert-item">
+      <div class="alert-icon ${a.color}"></div>
+      <div class="alert-body">
+        <div class="alert-msg">${a.msg}</div>
+        <div class="alert-time">${esc(a.time)}</div>
+      </div>
+    </div>`).join('');
+}
+
+/* ─── AI Analysis ─── */
+async function triggerAnalysis() {
+  const btn = el('btn-analysis');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span>RUNNING';
+  el('analysis-content').innerHTML = `<div class="empty-state" style="line-height:1.9;"><span class="spinner"></span> Generating analysis…</div>`;
+
+  try {
+    const payload = {
+      context: { zone: S.zone1, area: S.area, date: S.date },
+      lmp: S.lmp1,
+      binding: S.binding,
+      transmission: S.transmission,
+      renewables: S.renewables
+    };
+    const r = await fetch('/api/analysis', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    const json = await r.json();
+    if (json.error) throw new Error(String(json.error));
+
+    const model = String(json.model ?? 'AI').toUpperCase();
+    const ts = new Date().toLocaleString('en-US', { hour12: false }) + ' EPT';
+
+    el('analysis-content').innerHTML = `
+      <div class="analysis-body">
+        <div class="analysis-label"><div class="ai-dot"></div>${esc(model)} · ${esc(ts)}</div>
+        <div class="analysis-text" id="analysis-md"></div>
+      </div>`;
+    renderMarkdown(el('analysis-md'), json.analysis ?? '');
+  } catch (err) {
+    el('analysis-content').innerHTML = `<div class="error-state">Analysis failed: ${esc(err.message)}</div>`;
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '▶ RUN';
+  }
+}
+
+function renderMarkdown(container, raw) {
+  // Escape HTML first, then apply safe markdown transformations
+  const safe = raw
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+
+  const html = safe
+    .replace(/^#{1,3}\s+(.+)$/gm, '<span class="md-heading">$1</span>')
+    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+    .replace(/\*(.+?)\*/g, '<em>$1</em>')
+    .replace(/`(.+?)`/g, '<code style="font-family:var(--mono);font-size:12px;color:var(--accent);">$1</code>')
+    .split(/\n\n+/)
+    .map(block => block.trim() ? `<p>${block.replace(/\n/g,'<br>')}</p>` : '')
+    .join('');
+
+  container.innerHTML = html;
+}
+
+/* ─── Date navigation ─── */
+function prevDay()  { S.date = dateAdd(S.date, -1); loadAll(); }
+function nextDay()  { S.date = dateAdd(S.date,  1); loadAll(); }
+function goToday()  { S.date = dateStr(new Date()); loadAll(); }
+
+function onZoneChange() {
+  S.zone1 = el('zone1-select').value;
+  S.zone2 = el('zone2-select').value;
+  loadAll();
+}
+
+function onAreaChange() {
+  S.area = el('area-select').value;
+  loadAll();
+}
+
+async function refreshData() { await loadAll(); }
+
+/* ─── Clock ─── */
+function tick() {
+  const now = new Date();
+  el('clock').textContent = now.toLocaleTimeString('en-US', { hour12: false });
+  el('next-update').textContent = `in ${60 - now.getMinutes() % 60} min`;
+}
+tick();
+setInterval(tick, 1000);
+
+/* ─── Boot ─── */
+initCharts();
+loadAll();
+</script>
+</body>
+</html>
