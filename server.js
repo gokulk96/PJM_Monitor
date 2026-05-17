@@ -149,8 +149,10 @@ async function handleZoneLmp(_req, res, url) {
     datetime_beginning_ept: marketDayRange(date)
   });
 
-  const normalized = rows.filter((row) => isSelectedDate(row.datetime_beginning_ept, date)).map((row) => ({
-    datetime_beginning_ept: row.datetime_beginning_ept,
+  console.log(`da_hrl_lmps raw=${rows.length} zone=${zone} date=${date} sample_ept=${rows[0]?.datetime_beginning_ept ?? 'none'}`);
+
+  const normalized = rows.map((row) => ({
+    datetime_beginning_ept: normalizeEpt(row.datetime_beginning_ept),
     datetime_beginning_utc: row.datetime_beginning_utc,
     pnode_id: numeric(row.pnode_id),
     pnode_name: row.pnode_name,
@@ -159,7 +161,9 @@ async function handleZoneLmp(_req, res, url) {
     system_energy_price_da: numeric(row.system_energy_price_da),
     congestion_price_da: numeric(row.congestion_price_da),
     marginal_loss_price_da: numeric(row.marginal_loss_price_da)
-  })).sort(byHour);
+  })).filter((row) => isSelectedDate(row.datetime_beginning_ept, date)).sort(byHour);
+
+  console.log(`da_hrl_lmps filtered=${normalized.length} date=${date}`);
 
   sendJson(res, 200, {
     zone,
@@ -185,10 +189,12 @@ async function handleZoneRtLmp(_req, res, url) {
     pnode_id: String(pnodeId),
     datetime_beginning_ept: marketDayRange(date)
   });
+
+  console.log(`${feed} raw=${rows.length} zone=${zone} date=${date} sample_ept=${rows[0]?.datetime_beginning_ept ?? 'none'}`);
+
   const normalized = rows
-    .filter(row => isSelectedDate(row.datetime_beginning_ept, date))
     .map(row => ({
-      datetime_beginning_ept: row.datetime_beginning_ept,
+      datetime_beginning_ept: normalizeEpt(row.datetime_beginning_ept),
       pnode_id: numeric(row.pnode_id),
       pnode_name: row.pnode_name,
       total_lmp_rt: numeric(row.total_lmp_rt),
@@ -196,7 +202,10 @@ async function handleZoneRtLmp(_req, res, url) {
       congestion_price_rt: numeric(row.congestion_price_rt),
       marginal_loss_price_rt: numeric(row.marginal_loss_price_rt)
     }))
+    .filter(row => isSelectedDate(row.datetime_beginning_ept, date))
     .sort(byHour);
+
+  console.log(`${feed} filtered=${normalized.length} date=${date}`);
   sendJson(res, 200, {
     zone, pnodeId, date, granularity: gran,
     summary: summarizeRtLmp(normalized),
