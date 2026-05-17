@@ -1135,6 +1135,21 @@
       </div>
     </section>
 
+    <section class="panel" style="margin-bottom:14px;">
+      <div class="panel-head">
+        <div class="panel-head-left">
+          <span class="panel-title">Binding Constraint Heatmap</span>
+          <span class="panel-sub">DA · RT · shadow price intensity by hour</span>
+        </div>
+        <div id="dart-hm-scale-wrap" style="font-family:var(--mono);font-size:10px;color:var(--text-dim);display:flex;align-items:center;gap:6px;flex-wrap:wrap;"></div>
+      </div>
+      <div class="panel-body" style="padding-top:10px;">
+        <div class="heatmap-wrap" id="dart-heatmap-wrap">
+          <div class="empty">Awaiting data…</div>
+        </div>
+      </div>
+    </section>
+
     <section class="panel">
       <div class="panel-head">
         <div class="panel-head-left">
@@ -1210,6 +1225,8 @@ const S = {
   dartDaData: null,
   dartRtData: null,
   dartHourly: [],
+  dartDaBinding: null,
+  dartRtBinding: null,
 };
 
 const ZONE_COLORS = ['#60a5fa','#34d399','#fbbf24','#a78bfa','#fb7185'];
@@ -2369,7 +2386,7 @@ function renderRtHeatmap(constraintRows) {
     if ((f.data[tk] ?? 0) < abs) { f.totalAbs += abs - (f.data[tk] ?? 0); f.data[tk] = abs; }
   }
 
-  const facilities = [...facMap.values()].sort((a, b) => b.totalAbs - a.totalAbs).slice(0, 12);
+  const facilities = [...facMap.values()].sort((a, b) => b.totalAbs - a.totalAbs);
   const maxVal = Math.max(...facilities.flatMap(f => Object.values(f.data)), 1);
 
   // For 5-min show a time label every 24 slots (= 2 hours); for hourly every slot
@@ -2413,18 +2430,23 @@ function renderRtHeatmap(constraintRows) {
 /* ─── DART data loading ─── */
 async function loadDartData() {
   S.dartDaData = null; S.dartRtData = null; S.dartHourly = [];
+  S.dartDaBinding = null; S.dartRtBinding = null;
   setStatus('loading', 'Loading DART…');
   el('dart-date-input').value = S.dartDate;
   el('dart-date-display').textContent = formatDate(S.dartDate);
   ensureDartChart();
   try {
     const zone = S.dartZone, date = S.dartDate;
-    const [rDa, rRt] = await Promise.allSettled([
+    const [rDa, rRt, rDaBind, rRtBind] = await Promise.allSettled([
       apiFetch(`/api/pjm/da-lmp/zone?zone=${encodeURIComponent(zone)}&date=${date}`),
-      apiFetch(`/api/pjm/rt-lmp/zone?zone=${encodeURIComponent(zone)}&date=${date}&granularity=hourly`)
+      apiFetch(`/api/pjm/rt-lmp/zone?zone=${encodeURIComponent(zone)}&date=${date}&granularity=hourly`),
+      apiFetch(`/api/pjm/constraints/binding?date=${date}`),
+      apiFetch(`/api/pjm/constraints/rt-binding?date=${date}`)
     ]);
-    S.dartDaData = rDa.status === 'fulfilled' ? rDa.value : null;
-    S.dartRtData = rRt.status === 'fulfilled' ? rRt.value : null;
+    S.dartDaData    = rDa.status     === 'fulfilled' ? rDa.value     : null;
+    S.dartRtData    = rRt.status     === 'fulfilled' ? rRt.value     : null;
+    S.dartDaBinding = rDaBind.status === 'fulfilled' ? rDaBind.value : null;
+    S.dartRtBinding = rRtBind.status === 'fulfilled' ? rRtBind.value : null;
     renderDartTab();
     setStatus('live', 'DART feed active');
   } catch (err) {
@@ -2478,7 +2500,89 @@ function renderDartTab() {
   el('dart-kpi-hours').textContent           = rtAbove;
 
   updateDartChart(hourly);
+  renderDartHeatmap();
   renderDartTable(hourly);
+}
+
+function renderDartHeatmap() {
+  const wrap      = el('dart-heatmap-wrap');
+  const scaleWrap = el('dart-hm-scale-wrap');
+  const daRows    = S.dartDaBinding?.rows ?? [];
+  const rtRows    = S.dartRtBinding?.rows ?? [];
+
+  if (!daRows.length && !rtRows.length) {
+    wrap.innerHTML = '<div class="empty">No constraint data.</div>';
+    scaleWrap.innerHTML = '';
+    return;
+  }
+
+  // Build per-facility maps keyed by monitored+contingency
+  function buildFacMap(rows, source) {
+    const m = new Map();
+    for (const row of rows) {
+      const key = `${row.monitored_facility}||${row.contingency_facility ?? ''}`;
+      if (!m.has(key)) m.set(key, { name: row.monitored_facility, contingency: row.contingency_facility, data: {}, totalAbs: 0, source });
+      const f   = m.get(key);
+      const h   = hourOf(row.datetime_beginning_ept);
+      const abs = Math.abs(row.shadow_price ?? 0);
+      if ((f.data[h] ?? 0) < abs) { f.totalAbs += abs - (f.data[h] ?? 0); f.data[h] = abs; }
+    }
+    return m;
+  }
+
+  const daMap = buildFacMap(daRows, 'DA');
+  const rtMap = buildFacMap(rtRows, 'RT');
+
+  // Merge: if same key exists in both, mark as both
+  const merged = new Map(daMap);
+  for (const [key, rf] of rtMap) {
+    if (merged.has(key)) {
+      const df = merged.get(key);
+      // Merge data: keep max per hour, combine totalAbs
+      for (const [h, v] of Object.entries(rf.data)) {
+        if ((df.data[h] ?? 0) < v) { df.totalAbs += v - (df.data[h] ?? 0); df.data[h] = v; }
+      }
+      df.source = 'DA+RT';
+    } else {
+      merged.set(key, rf);
+    }
+  }
+
+  const facilities = [...merged.values()].sort((a, b) => b.totalAbs - a.totalAbs);
+  const maxVal     = Math.max(...facilities.flatMap(f => Object.values(f.data)), 1);
+
+  // Color by source: DA=amber, RT=red-orange, DA+RT=red-orange (RT dominated)
+  function cellBg(source, alpha) {
+    if (source === 'DA')    return `oklch(80% 0.14 75 / ${alpha})`;
+    return `oklch(67% 0.20 25 / ${alpha})`;
+  }
+
+  const labelWidth = 240;
+  let html = `<div class="heatmap" style="grid-template-columns:${labelWidth}px repeat(24,minmax(28px,1fr));">`;
+  html += `<div class="hm-corner"></div>`;
+  for (let h = 0; h < 24; h++) html += `<div class="hm-h">H${h}</div>`;
+
+  for (const fac of facilities) {
+    const badge = fac.source === 'DA+RT' ? ' <span style="color:var(--text-dim);font-size:9px;">DA+RT</span>'
+                : fac.source === 'RT'    ? ' <span style="color:var(--text-dim);font-size:9px;">RT</span>'
+                :                          ' <span style="color:var(--text-dim);font-size:9px;">DA</span>';
+    html += `<div class="hm-label" title="${esc(fac.name ?? '')}">${esc(trunc(fac.name ?? 'Unknown', 28))}${badge}</div>`;
+    for (let h = 0; h < 24; h++) {
+      const v     = fac.data[h] ?? 0;
+      const t     = Math.min(1, v / maxVal);
+      const alpha = v > 0 ? (0.15 + t * 0.8).toFixed(2) : '0';
+      const bg    = v > 0 ? cellBg(fac.source, alpha) : 'transparent';
+      const txt   = v >= 10 ? Math.round(v) : v > 0 ? v.toFixed(1) : '';
+      html += `<div class="hm-cell" style="background:${bg};" title="${esc(fac.name ?? '')} H${h}: ${v ? '-$' + v.toFixed(0) : 'none'}">${txt}</div>`;
+    }
+  }
+  html += '</div>';
+  wrap.innerHTML = html;
+
+  scaleWrap.innerHTML =
+    `<span style="display:inline-flex;align-items:center;gap:4px;"><span style="width:10px;height:10px;border-radius:2px;display:inline-block;background:oklch(80% 0.14 75/.9);"></span>DA</span>` +
+    `<span style="display:inline-flex;align-items:center;gap:4px;"><span style="width:10px;height:10px;border-radius:2px;display:inline-block;background:oklch(67% 0.20 25/.9);"></span>RT / DA+RT</span>` +
+    ` &nbsp;$0 <span style="width:60px;height:7px;border-radius:3px;display:inline-block;vertical-align:middle;background:linear-gradient(90deg,oklch(67% 0.20 25/.12),oklch(67% 0.20 25/1));"></span> $${maxVal >= 100 ? Math.round(maxVal) : maxVal.toFixed(0)} peak`;
 }
 
 function updateDartChart(hourly) {
