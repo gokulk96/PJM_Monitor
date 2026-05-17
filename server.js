@@ -210,13 +210,13 @@ async function handleRtBindingConstraints(_req, res, url) {
     datetime_beginning_ept: marketDayRange(date)
   });
   const filtered = rows
-    .filter(row => isSelectedDate(row.datetime_beginning_ept, date))
     .map(row => ({
-      datetime_beginning_ept: row.datetime_beginning_ept,
+      datetime_beginning_ept: normalizeEpt(row.datetime_beginning_ept),
       monitored_facility: row.monitored_facility,
       contingency_facility: row.contingency_facility,
       shadow_price: numeric(row.shadow_price)
     }))
+    .filter(row => isSelectedDate(row.datetime_beginning_ept, date))
     .sort(byHour);
   sendJson(res, 200, { date, summary: summarizeBinding(filtered), rows: filtered });
 }
@@ -270,13 +270,14 @@ async function handleBindingConstraints(_req, res, url) {
     datetime_beginning_ept: marketDayRange(date)
   });
 
-  const filtered = rows.filter((row) => isSelectedDate(row.datetime_beginning_ept, date)).map((row) => ({
-    datetime_beginning_ept: row.datetime_beginning_ept,
-    datetime_ending_ept: row.datetime_ending_ept,
+  const filtered = rows.map((row) => ({
+    datetime_beginning_ept: normalizeEpt(row.datetime_beginning_ept),
+    datetime_ending_ept:    normalizeEpt(row.datetime_ending_ept),
     monitored_facility: row.monitored_facility,
     contingency_facility: row.contingency_facility,
     shadow_price: numeric(row.shadow_price)
-  })).filter((row) => Math.abs(row.shadow_price || 0) >= minShadowPrice)
+  })).filter((row) => isSelectedDate(row.datetime_beginning_ept, date))
+    .filter((row) => Math.abs(row.shadow_price || 0) >= minShadowPrice)
     .filter((row) => includes(row.monitored_facility, monitored) && includes(row.contingency_facility, contingency))
     .sort((a, b) => Math.abs(b.shadow_price || 0) - Math.abs(a.shadow_price || 0));
 
@@ -710,6 +711,14 @@ function byHour(a, b) {
 
 function isSelectedDate(value, date) {
   return String(value || "").slice(0, 10) === date;
+}
+
+function normalizeEpt(value) {
+  const s = String(value || "").trim();
+  if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s;                    // already ISO
+  const m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})\s*(.*)$/);   // M/D/YYYY ...
+  if (m) return `${m[3]}-${m[1].padStart(2,"0")}-${m[2].padStart(2,"0")}${m[4] ? " " + m[4].trim() : ""}`;
+  return s;
 }
 
 function avg(values) {

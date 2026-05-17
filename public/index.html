@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>PJM Market Monitor</title>
+<title>PJM DA and RT Dashboard</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -646,8 +646,8 @@
   <div class="brand">
     <div class="brand-mark">PJM</div>
     <div class="brand-text">
-      <span class="brand-title">Market Monitor</span>
-      <span class="brand-sub">Day-Ahead surveillance</span>
+      <span class="brand-title">PJM DA and RT Dashboard</span>
+      <span class="brand-sub">Day-Ahead &amp; Real-Time surveillance</span>
     </div>
   </div>
 
@@ -1185,9 +1185,10 @@
 </main>
 
 <footer>
-  <div>PJM Market Monitor · DA Surveillance · Source: PJM Data Miner 2</div>
+  <div>PJM Market Monitoring · DA and RT Surveillance and Analytics · Source: PJM Data Miner 2</div>
   <div class="footer-links">
     <span id="footer-ts">Last sync: --</span>
+    <span style="color:var(--text-dim);">Created by NergyMatrix &copy;</span>
   </div>
 </footer>
 
@@ -1881,12 +1882,11 @@ function renderBinding() {
 
   container.innerHTML = top.map(r => {
     const pct = Math.round((r.peakAbs / maxPeak) * 100);
-    const territory = (r.monitored_facility ?? '').split(/[\s_-]/)[0] ?? '';
     return `
       <div class="c-row">
         <div>
           <div class="c-name">${esc(r.monitored_facility ?? 'Unknown')}</div>
-          <div class="c-meta">${esc(r.contingency_facility ?? 'Base case')} <span class="c-chip">${esc(territory)}</span></div>
+          <div class="c-meta">${esc(r.contingency_facility ?? 'Base case')}</div>
           <div class="c-bar"><div style="width:${pct}%"></div></div>
         </div>
         <div>
@@ -2338,7 +2338,6 @@ function renderRtConstraints(rows) {
   el('rt-binding-count-tag').textContent = `${top.length} facilities · ${rows.length} intervals`;
   container.innerHTML = top.map(r => {
     const pct = Math.round((r.count / maxCount) * 100);
-    const territory = (r.monitored ?? '').split(/[\s_-]/)[0] ?? '';
     const abs = r.maxAbsShadow;
     const badgeHtml = abs >= 1000 ? ` <span class="rt-badge cap">≥$1000</span>` : abs >= 500 ? ` <span class="rt-badge high">≥$500</span>` : '';
     const nameHtml  = r.count >= 20 ? `<b>${esc(r.monitored ?? 'Unknown')}</b>` : esc(r.monitored ?? 'Unknown');
@@ -2346,7 +2345,7 @@ function renderRtConstraints(rows) {
       <div class="c-row">
         <div>
           <div class="c-name">${nameHtml}${badgeHtml}</div>
-          <div class="c-meta">${esc(r.contingency ?? 'Base case')} <span class="c-chip">${esc(territory)}</span></div>
+          <div class="c-meta">${esc(r.contingency ?? 'Base case')}</div>
           <div class="c-bar"><div style="width:${pct}%"></div></div>
         </div>
         <div>
