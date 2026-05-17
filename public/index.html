@@ -1423,6 +1423,7 @@ async function loadStatus() {
 }
 
 async function loadAll() {
+  if (S.daViewMode === 'month') { loadAllMonthly(); return; }
   if (S.loading) return;
   S.loading = true;
   setStatus('loading', 'Loading…');
@@ -1820,6 +1821,11 @@ function rowsByHour(data) {
 
 function updateCharts() {
   const c = CHARTS;
+  // Always reset DA chart labels to 24-hour axis when in day mode
+  c.lmp.data.labels    = HOURS.slice();
+  c.cong.data.labels   = HOURS.slice();
+  c.spread.data.labels = HOURS.slice();
+  c.gen.data.labels    = HOURS.slice();
 
   if (S.mode === 'custom') {
     const h0 = rowsByHour(S.lmpCustom);
@@ -2306,6 +2312,7 @@ function ensureDartChart() {
 
 /* ─── RT data loading ─── */
 async function loadRtData() {
+  if (S.rtViewMode === 'month') { loadRtMonthly(); return; }
   S.rtData = null; S.rtBinding = null;
   setStatus('loading', 'Loading RT…');
   el('rt-date-input').value = S.rtDate;
@@ -2493,6 +2500,7 @@ function renderRtHeatmap(constraintRows) {
 
 /* ─── DART data loading ─── */
 async function loadDartData() {
+  if (S.dartViewMode === 'month') { loadDartMonthly(); return; }
   S.dartDaData = null; S.dartRtData = null; S.dartHourly = [];
   S.dartDaBinding = null; S.dartRtBinding = null;
   setStatus('loading', 'Loading DART…');
@@ -2591,24 +2599,24 @@ function renderDaMonthly() {
   const avgLmps = days.map(d => d.avg_lmp_da);
   const maxLmps = days.map(d => d.max_lmp_da);
 
-  // Update LMP chart
+  // Update LMP chart — show only primary zone avg + max; hide all others
+  const primaryZone = S.mode === 'multi' ? (S.multiZones[0] || S.zone1) : S.zone1;
   const lc = CHARTS.lmp;
   lc.data.labels = labels;
-  lc.data.datasets.forEach((ds, i) => { ds.hidden = i > 1; });
-  lc.data.datasets[0].data  = avgLmps;
-  lc.data.datasets[0].label = 'Daily Avg LMP';
-  lc.data.datasets[0].fill  = false;
-  lc.data.datasets[1].data  = maxLmps;
-  lc.data.datasets[1].label = 'Daily Max LMP';
-  lc.data.datasets[1].hidden = false;
+  lc.data.datasets.forEach((ds, i) => { ds.hidden = true; });
+  lc.data.datasets[0].data   = avgLmps;
+  lc.data.datasets[0].label  = `${primaryZone} Daily Avg LMP`;
+  lc.data.datasets[0].fill   = false;
+  lc.data.datasets[0].hidden = false;
   lc.update();
 
-  // Update congestion chart with daily avg congestion
+  // Update congestion chart — primary zone only in monthly view
   const congVals = days.map(d => d.avg_congestion_da);
   CHARTS.cong.data.labels = labels;
-  CHARTS.cong.data.datasets.forEach((ds, i) => { ds.hidden = i > 0; });
-  CHARTS.cong.data.datasets[0].data  = congVals;
-  CHARTS.cong.data.datasets[0].label = 'Daily Avg Congestion';
+  CHARTS.cong.data.datasets.forEach((ds, i) => { ds.hidden = true; });
+  CHARTS.cong.data.datasets[0].data   = congVals;
+  CHARTS.cong.data.datasets[0].label  = `${primaryZone} Daily Avg Congestion`;
+  CHARTS.cong.data.datasets[0].hidden = false;
   CHARTS.cong.update();
 
   // Update gen chart
@@ -2680,9 +2688,6 @@ function renderDartMonthly() {
   el('dart-kpi-overshoot').textContent = ms?.worst_da_overshoot_day ? `${ms.worst_da_overshoot_day.slice(5)}: ${fmt$(ms.worst_da_overshoot)}` : '--';
   el('dart-kpi-hours').textContent = days.reduce((sum, d) => sum + (d.hours_rt_above ?? 0), 0);
 
-  // Clear DART table in monthly mode
-  const tblWrap = el('dart-table-wrap');
-  if (tblWrap) tblWrap.innerHTML = '<div class="empty">Hourly table not available in monthly view.</div>';
 }
 
 function buildDartHourly() {
