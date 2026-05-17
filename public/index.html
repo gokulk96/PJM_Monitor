@@ -230,6 +230,13 @@
   }
   .stepper input:focus { outline: none; background: var(--surface-2); }
   .stepper .today-btn { font-family: var(--mono); font-size: 11px; padding: 0 12px; height: 32px; border: none; background: transparent; }
+  input[type="month"] {
+    height: 32px; border: none; background: transparent;
+    border-left: 1px solid var(--line); border-right: 1px solid var(--line);
+    color: var(--text); font-family: var(--mono); font-size: 12px;
+    padding: 0 10px; width: 130px; color-scheme: dark;
+  }
+  input[type="month"]:focus { outline: none; background: var(--surface-2); }
 
   .seg {
     display: inline-flex; padding: 3px; gap: 2px;
@@ -719,13 +726,27 @@
       <span class="selector-label">Area</span>
       <select id="area-select" class="zone-select"></select>
 
-      <div class="stepper">
+      <div class="seg" id="da-view-seg">
+        <button data-view="day" class="active">Day</button>
+        <button data-view="month">Month</button>
+      </div>
+      <div class="stepper" id="da-day-stepper">
         <button id="prev-day" title="Previous day">
           <svg viewBox="0 0 16 16" fill="none"><path d="M10 4l-4 4 4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
         </button>
         <input type="date" id="date-input">
         <button id="today-btn" class="today-btn">Today</button>
         <button id="next-day" title="Next day">
+          <svg viewBox="0 0 16 16" fill="none"><path d="M6 4l4 4-4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
+      </div>
+      <div class="stepper" id="da-month-stepper" hidden>
+        <button id="da-prev-month" title="Previous month">
+          <svg viewBox="0 0 16 16" fill="none"><path d="M10 4l-4 4 4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
+        <input type="month" id="da-month-input">
+        <button id="da-this-month" class="today-btn">This month</button>
+        <button id="da-next-month" title="Next month">
           <svg viewBox="0 0 16 16" fill="none"><path d="M6 4l4 4-4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
         </button>
       </div>
@@ -961,17 +982,27 @@
         <span class="tag-rt">Real-Time</span>
       </div>
       <div class="toolbar-right">
+        <div class="seg" id="rt-view-seg">
+          <button data-view="day" class="active">Day</button>
+          <button data-view="month">Month</button>
+        </div>
         <div class="seg" id="rt-gran-seg">
           <button id="rtgran-hourly"  data-gran="hourly"      class="active">Hourly</button>
           <button id="rtgran-fivemin" data-gran="five_minute">5-min</button>
         </div>
         <span class="selector-label">Zone</span>
         <select id="rt-zone-select" class="zone-select"></select>
-        <div class="stepper">
+        <div class="stepper" id="rt-day-stepper">
           <button id="rt-prev-day" title="Previous day"><svg viewBox="0 0 16 16" fill="none"><path d="M10 4l-4 4 4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
           <input type="date" id="rt-date-input">
           <button id="rt-today-btn" class="today-btn">Today</button>
           <button id="rt-next-day" title="Next day"><svg viewBox="0 0 16 16" fill="none"><path d="M6 4l4 4-4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+        </div>
+        <div class="stepper" id="rt-month-stepper" hidden>
+          <button id="rt-prev-month" title="Previous month"><svg viewBox="0 0 16 16" fill="none"><path d="M10 4l-4 4 4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+          <input type="month" id="rt-month-input">
+          <button id="rt-this-month" class="today-btn">This month</button>
+          <button id="rt-next-month" title="Next month"><svg viewBox="0 0 16 16" fill="none"><path d="M6 4l4 4-4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
         </div>
         <button id="rt-refresh-btn" class="icon-btn" title="Refresh RT data">
           <svg viewBox="0 0 16 16" fill="none"><path d="M2 8a6 6 0 0 1 10.5-3.97V3M14 8a6 6 0 0 1-10.5 3.97V13" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/><path d="M12.5 1.5v2.5h-2.5M3.5 14.5V12h2.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
@@ -1078,13 +1109,23 @@
         <span class="tag-dart">DART</span>
       </div>
       <div class="toolbar-right">
+        <div class="seg" id="dart-view-seg">
+          <button data-view="day" class="active">Day</button>
+          <button data-view="month">Month</button>
+        </div>
         <span class="selector-label">Zone</span>
         <select id="dart-zone-select" class="zone-select"></select>
-        <div class="stepper">
+        <div class="stepper" id="dart-day-stepper">
           <button id="dart-prev-day" title="Previous day"><svg viewBox="0 0 16 16" fill="none"><path d="M10 4l-4 4 4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
           <input type="date" id="dart-date-input">
           <button id="dart-today-btn" class="today-btn">Today</button>
           <button id="dart-next-day" title="Next day"><svg viewBox="0 0 16 16" fill="none"><path d="M6 4l4 4-4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+        </div>
+        <div class="stepper" id="dart-month-stepper" hidden>
+          <button id="dart-prev-month" title="Previous month"><svg viewBox="0 0 16 16" fill="none"><path d="M10 4l-4 4 4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+          <input type="month" id="dart-month-input">
+          <button id="dart-this-month" class="today-btn">This month</button>
+          <button id="dart-next-month" title="Next month"><svg viewBox="0 0 16 16" fill="none"><path d="M6 4l4 4-4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
         </div>
         <button id="dart-refresh-btn" class="icon-btn" title="Refresh DART data">
           <svg viewBox="0 0 16 16" fill="none"><path d="M2 8a6 6 0 0 1 10.5-3.97V3M14 8a6 6 0 0 1-10.5 3.97V13" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/><path d="M12.5 1.5v2.5h-2.5M3.5 14.5V12h2.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
@@ -1228,6 +1269,20 @@ const S = {
   dartHourly: [],
   dartDaBinding: null,
   dartRtBinding: null,
+
+  daViewMode: 'day',
+  rtViewMode: 'day',
+  dartViewMode: 'day',
+
+  daMonth: null,
+  rtMonth: null,
+  dartMonth: null,
+
+  daMonthlyLmp: null,
+  daMonthlyBinding: null,
+  daMonthlyRenewables: null,
+  rtMonthlyData: null,
+  dartMonthlyData: null,
 };
 
 const ZONE_COLORS = ['#60a5fa','#34d399','#fbbf24','#a78bfa','#fb7185'];
@@ -1239,6 +1294,10 @@ const ZONE_FILLS  = [
 /* ─── Utils ─── */
 function dateStr(d) { return d.toISOString().slice(0, 10); }
 function dateAdd(s, n) { const d = new Date(s + 'T12:00:00'); d.setDate(d.getDate() + n); return dateStr(d); }
+function monthStr(d) { return d.toISOString().slice(0, 7); }
+function monthAdd(ym, n) { const [y, m] = ym.split('-').map(Number); const d = new Date(y, m - 1 + n, 1); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`; }
+function formatMonth(ym) { const [y, m] = ym.split('-').map(Number); return new Date(y, m-1, 1).toLocaleDateString('en-US', { month: 'long', year: 'numeric' }); }
+function currentMonthStr() { return monthStr(new Date()); }
 function el(id) { return document.getElementById(id); }
 function esc(s) { return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 
@@ -2161,8 +2220,14 @@ function switchTab(tab) {
     el('section-' + t).hidden = t !== tab;
     el('tabbtn-' + t).classList.toggle('active', t === tab);
   });
-  if (tab === 'rt'   && !S.rtData)    loadRtData();
-  if (tab === 'dart' && !S.dartDaData) loadDartData();
+  if (tab === 'rt') {
+    if (S.rtViewMode === 'month' && !S.rtMonthlyData) loadRtMonthly();
+    else if (S.rtViewMode === 'day' && !S.rtData)     loadRtData();
+  }
+  if (tab === 'dart') {
+    if (S.dartViewMode === 'month' && !S.dartMonthlyData) loadDartMonthly();
+    else if (S.dartViewMode === 'day' && !S.dartDaData)   loadDartData();
+  }
 }
 
 /* ─── RT Charts ─── */
@@ -2452,6 +2517,172 @@ async function loadDartData() {
     console.error('DART load error:', err);
     setStatus('error', 'Connection error');
   }
+}
+
+async function loadAllMonthly() {
+  if (S.daViewMode !== 'month') return;
+  const ym = S.daMonth;
+  el('da-month-input').value = ym;
+  el('market-date').textContent = formatMonth(ym);
+  el('market-day').textContent  = 'Monthly summary';
+  setStatus('loading', 'Loading monthly DA…');
+  try {
+    await loadStatus();
+    const zone = S.zone1;
+    const [rLmp, rBind, rRen] = await Promise.allSettled([
+      apiFetch(`/api/pjm/da-lmp/zone/monthly?zone=${encodeURIComponent(zone)}&month=${ym}`),
+      apiFetch(`/api/pjm/constraints/binding/monthly?month=${ym}`),
+      apiFetch(`/api/pjm/renewables/monthly?month=${ym}&area=${encodeURIComponent(S.area)}`)
+    ]);
+    S.daMonthlyLmp      = rLmp.status  === 'fulfilled' ? rLmp.value  : null;
+    S.daMonthlyBinding  = rBind.status === 'fulfilled' ? rBind.value : null;
+    S.daMonthlyRenewables = rRen.status === 'fulfilled' ? rRen.value : null;
+    renderDaMonthly();
+    setStatus('live', 'Monthly DA loaded');
+  } catch (err) {
+    console.error('Monthly DA load error:', err);
+    setStatus('error', 'Connection error');
+  }
+}
+
+async function loadRtMonthly() {
+  if (S.rtViewMode !== 'month') return;
+  const ym = S.rtMonth;
+  el('rt-month-input').value = ym;
+  el('rt-date-display').textContent = formatMonth(ym);
+  setStatus('loading', 'Loading monthly RT…');
+  try {
+    const zone = S.rtZone;
+    const r = await apiFetch(`/api/pjm/rt-lmp/zone/monthly?zone=${encodeURIComponent(zone)}&month=${ym}`);
+    S.rtMonthlyData = r;
+    renderRtMonthly();
+    setStatus('live', 'Monthly RT loaded');
+  } catch (err) {
+    console.error('Monthly RT load error:', err);
+    setStatus('error', 'Connection error');
+  }
+}
+
+async function loadDartMonthly() {
+  if (S.dartViewMode !== 'month') return;
+  const ym = S.dartMonth;
+  el('dart-month-input').value = ym;
+  el('dart-date-display').textContent = formatMonth(ym);
+  setStatus('loading', 'Loading monthly DART…');
+  try {
+    const zone = S.dartZone;
+    const r = await apiFetch(`/api/pjm/dart/monthly?zone=${encodeURIComponent(zone)}&month=${ym}`);
+    S.dartMonthlyData = r;
+    renderDartMonthly();
+    setStatus('live', 'Monthly DART loaded');
+  } catch (err) {
+    console.error('Monthly DART load error:', err);
+    setStatus('error', 'Connection error');
+  }
+}
+
+function renderDaMonthly() {
+  const lmpData = S.daMonthlyLmp;
+  const bindData = S.daMonthlyBinding;
+  const renData  = S.daMonthlyRenewables;
+
+  const days = lmpData?.days ?? [];
+  const labels = days.map(d => String(Number(d.date.slice(8, 10))));
+  const avgLmps = days.map(d => d.avg_lmp_da);
+  const maxLmps = days.map(d => d.max_lmp_da);
+
+  // Update LMP chart
+  const lc = CHARTS.lmp;
+  lc.data.labels = labels;
+  lc.data.datasets.forEach((ds, i) => { ds.hidden = i > 1; });
+  lc.data.datasets[0].data  = avgLmps;
+  lc.data.datasets[0].label = 'Daily Avg LMP';
+  lc.data.datasets[0].fill  = false;
+  lc.data.datasets[1].data  = maxLmps;
+  lc.data.datasets[1].label = 'Daily Max LMP';
+  lc.data.datasets[1].hidden = false;
+  lc.update();
+
+  // Update congestion chart with daily avg congestion
+  const congVals = days.map(d => d.avg_congestion_da);
+  CHARTS.cong.data.labels = labels;
+  CHARTS.cong.data.datasets.forEach((ds, i) => { ds.hidden = i > 0; });
+  CHARTS.cong.data.datasets[0].data  = congVals;
+  CHARTS.cong.data.datasets[0].label = 'Daily Avg Congestion';
+  CHARTS.cong.update();
+
+  // Update gen chart
+  const renDays = renData?.days ?? [];
+  const renLabels = renDays.map(d => String(Number(d.date.slice(8, 10))));
+  CHARTS.gen.data.labels = renLabels;
+  CHARTS.gen.data.datasets[0].data = renDays.map(d => d.avg_solar_mw);
+  CHARTS.gen.data.datasets[1].data = renDays.map(d => d.avg_wind_mw);
+  CHARTS.gen.update();
+
+  // KPIs
+  const ms = lmpData?.monthSummary;
+  el('kpi-z1-label').textContent = 'Monthly Avg LMP';
+  el('kpi-z1-avg').textContent   = ms ? fmt$(ms.avg_lmp) : '--';
+  el('kpi-z1-peak').textContent  = ms?.peak_day ? `Peak ${ms.peak_day.slice(5)}: ${fmt$(ms.peak_lmp)}` : '--';
+
+  // Binding constraint list
+  const container = el('binding-list');
+  const facilities = bindData?.facilities ?? [];
+  if (!facilities.length) {
+    container.innerHTML = '<div class="empty">No constraint data for this month.</div>';
+  } else {
+    container.innerHTML = facilities.map(f => `
+      <div class="c-row">
+        <div class="c-name">${esc(f.monitored_facility)}</div>
+        <div class="c-contingency">${esc(f.contingency_facility || '—')}</div>
+        <div class="c-hours">${f.hours_active} hr${f.hours_active !== 1 ? 's' : ''}</div>
+      </div>`).join('');
+  }
+  el('binding-count-tag').textContent = `${bindData?.total_unique_constraints ?? '--'} constraints`;
+}
+
+function renderRtMonthly() {
+  const data = S.rtMonthlyData;
+  const days = data?.days ?? [];
+  const labels = days.map(d => String(Number(d.date.slice(8, 10))));
+
+  ensureRtChart();
+  CHARTS.rt.data.labels = labels;
+  CHARTS.rt.data.datasets[0].data  = days.map(d => d.avg_lmp_rt);
+  CHARTS.rt.data.datasets[0].label = 'Daily Avg RT LMP';
+  CHARTS.rt.data.datasets.forEach((ds, i) => { if (i > 0) ds.hidden = true; });
+  CHARTS.rt.update();
+
+  const ms = data?.monthSummary;
+  el('rt-kpi-zone').textContent    = S.rtZone;
+  el('rt-kpi-avg').textContent     = ms ? fmt$(ms.avg_lmp_rt) : '--';
+  el('rt-kpi-avg-sub').textContent = ms?.peak_day ? `Peak ${ms.peak_day.slice(5)}: ${fmt$(ms.peak_lmp_rt)}` : '--';
+}
+
+function renderDartMonthly() {
+  const data = S.dartMonthlyData;
+  const days = data?.days ?? [];
+  const labels = days.map(d => String(Number(d.date.slice(8, 10))));
+
+  ensureDartChart();
+  CHARTS.dart.data.labels = labels;
+  CHARTS.dart.data.datasets[0].data            = days.map(d => d.avg_dart);
+  CHARTS.dart.data.datasets[0].backgroundColor = days.map(d => (d.avg_dart ?? 0) >= 0 ? 'rgba(96,165,250,0.7)' : 'rgba(251,191,36,0.7)');
+  CHARTS.dart.data.datasets[0].label = 'Daily Avg DART';
+  if (CHARTS.dart.data.datasets[1]) { CHARTS.dart.data.datasets[1].data = days.map(d => d.avg_da); CHARTS.dart.data.datasets[1].label = 'Daily Avg DA'; }
+  if (CHARTS.dart.data.datasets[2]) { CHARTS.dart.data.datasets[2].data = days.map(d => d.avg_rt); CHARTS.dart.data.datasets[2].label = 'Daily Avg RT'; }
+  CHARTS.dart.update();
+
+  const ms = data?.monthSummary;
+  el('dart-kpi-avg').textContent = ms ? fmt$(ms.avg_dart) : '--';
+  if (el('dart-kpi-avg-badge')) el('dart-kpi-avg-badge').textContent = ms?.avg_dart != null ? (ms.avg_dart >= 0 ? '▲ RT above' : '▼ DA above') : '--';
+  el('dart-kpi-max').textContent  = ms?.worst_rt_premium_day  ? `${ms.worst_rt_premium_day.slice(5)}: ${fmt$(ms.worst_rt_premium)}` : '--';
+  el('dart-kpi-overshoot').textContent = ms?.worst_da_overshoot_day ? `${ms.worst_da_overshoot_day.slice(5)}: ${fmt$(ms.worst_da_overshoot)}` : '--';
+  el('dart-kpi-hours').textContent = days.reduce((sum, d) => sum + (d.hours_rt_above ?? 0), 0);
+
+  // Clear DART table in monthly mode
+  const tblWrap = el('dart-table-wrap');
+  if (tblWrap) tblWrap.innerHTML = '<div class="empty">Hourly table not available in monthly view.</div>';
 }
 
 function buildDartHourly() {
@@ -2796,6 +3027,84 @@ el('dart-prev-day').addEventListener('click',  () => { S.dartDate = dateAdd(S.da
 el('dart-next-day').addEventListener('click',  () => { S.dartDate = dateAdd(S.dartDate,  1); S.dartDaData = null; loadDartData(); });
 el('dart-today-btn').addEventListener('click', () => { S.dartDate = dateStr(new Date()); S.dartDaData = null; loadDartData(); });
 el('dart-refresh-btn').addEventListener('click', () => { S.dartDaData = null; loadDartData(); });
+
+/* ─── Monthly view toggles ─── */
+function setViewMode(tab, mode) {
+  const dayStepperId   = `${tab}-day-stepper`;
+  const monthStepperId = `${tab}-month-stepper`;
+  const segId          = `${tab}-view-seg`;
+  el(dayStepperId).hidden   = mode === 'month';
+  el(monthStepperId).hidden = mode === 'day';
+  el(segId).querySelectorAll('button[data-view]').forEach(b => b.classList.toggle('active', b.dataset.view === mode));
+  // Hide granularity seg in month mode for RT tab
+  if (tab === 'rt' && el('rt-gran-seg')) el('rt-gran-seg').hidden = mode === 'month';
+}
+
+el('da-view-seg').addEventListener('click', e => {
+  const btn = e.target.closest('button[data-view]');
+  if (!btn) return;
+  S.daViewMode = btn.dataset.view;
+  setViewMode('da', S.daViewMode);
+  if (S.daViewMode === 'month') {
+    if (!S.daMonth) S.daMonth = S.date.slice(0, 7);
+    loadAllMonthly();
+  } else {
+    loadAll();
+  }
+});
+el('da-prev-month').addEventListener('click', () => { S.daMonth = monthAdd(S.daMonth, -1); loadAllMonthly(); });
+el('da-next-month').addEventListener('click', () => {
+  const next = monthAdd(S.daMonth, 1);
+  if (next <= currentMonthStr()) { S.daMonth = next; loadAllMonthly(); }
+});
+el('da-this-month').addEventListener('click', () => { S.daMonth = currentMonthStr(); loadAllMonthly(); });
+el('da-month-input').addEventListener('change', e => {
+  if (/^\d{4}-\d{2}$/.test(e.target.value)) { S.daMonth = e.target.value; loadAllMonthly(); }
+});
+
+el('rt-view-seg').addEventListener('click', e => {
+  const btn = e.target.closest('button[data-view]');
+  if (!btn) return;
+  S.rtViewMode = btn.dataset.view;
+  setViewMode('rt', S.rtViewMode);
+  if (S.rtViewMode === 'month') {
+    if (!S.rtMonth) S.rtMonth = S.rtDate.slice(0, 7);
+    S.rtMonthlyData = null; loadRtMonthly();
+  } else {
+    S.rtData = null; loadRtData();
+  }
+});
+el('rt-prev-month').addEventListener('click', () => { S.rtMonth = monthAdd(S.rtMonth, -1); S.rtMonthlyData = null; loadRtMonthly(); });
+el('rt-next-month').addEventListener('click', () => {
+  const next = monthAdd(S.rtMonth, 1);
+  if (next <= currentMonthStr()) { S.rtMonth = next; S.rtMonthlyData = null; loadRtMonthly(); }
+});
+el('rt-this-month').addEventListener('click', () => { S.rtMonth = currentMonthStr(); S.rtMonthlyData = null; loadRtMonthly(); });
+el('rt-month-input').addEventListener('change', e => {
+  if (/^\d{4}-\d{2}$/.test(e.target.value)) { S.rtMonth = e.target.value; S.rtMonthlyData = null; loadRtMonthly(); }
+});
+
+el('dart-view-seg').addEventListener('click', e => {
+  const btn = e.target.closest('button[data-view]');
+  if (!btn) return;
+  S.dartViewMode = btn.dataset.view;
+  setViewMode('dart', S.dartViewMode);
+  if (S.dartViewMode === 'month') {
+    if (!S.dartMonth) S.dartMonth = S.dartDate.slice(0, 7);
+    S.dartMonthlyData = null; loadDartMonthly();
+  } else {
+    S.dartDaData = null; loadDartData();
+  }
+});
+el('dart-prev-month').addEventListener('click', () => { S.dartMonth = monthAdd(S.dartMonth, -1); S.dartMonthlyData = null; loadDartMonthly(); });
+el('dart-next-month').addEventListener('click', () => {
+  const next = monthAdd(S.dartMonth, 1);
+  if (next <= currentMonthStr()) { S.dartMonth = next; S.dartMonthlyData = null; loadDartMonthly(); }
+});
+el('dart-this-month').addEventListener('click', () => { S.dartMonth = currentMonthStr(); S.dartMonthlyData = null; loadDartMonthly(); });
+el('dart-month-input').addEventListener('change', e => {
+  if (/^\d{4}-\d{2}$/.test(e.target.value)) { S.dartMonth = e.target.value; S.dartMonthlyData = null; loadDartMonthly(); }
+});
 
 /* ─── Clock ─── */
 function tick() {
