@@ -370,14 +370,14 @@
   .c-bar > div { height: 100%; background: linear-gradient(90deg, var(--red), var(--red-2)); border-radius: 2px; }
 
   /* Heatmap */
-  .heatmap-wrap { overflow-x: auto; padding-bottom: 4px; }
+  .heatmap-wrap { overflow-x: auto; overflow-y: auto; max-height: 520px; padding-bottom: 4px; }
   .heatmap {
     display: grid; gap: 2px;
     grid-template-columns: 240px repeat(24, minmax(30px, 1fr));
     font-family: var(--mono); min-width: 1000px;
   }
-  .hm-corner { font-size: 10px; color: var(--text-dim); padding: 4px 8px 4px 0; }
-  .hm-h { font-size: 10px; color: var(--text-dim); text-align: center; padding: 4px 0; }
+  .hm-corner { font-size: 10px; color: var(--text-dim); padding: 4px 8px 4px 0; position: sticky; top: 0; background: var(--surface-2); z-index: 2; }
+  .hm-h { font-size: 10px; color: var(--text-dim); text-align: center; padding: 4px 0; position: sticky; top: 0; background: var(--surface-2); z-index: 2; }
   .hm-label {
     font-size: 11px; color: var(--text-soft); padding: 4px 10px 4px 0;
     white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
@@ -1900,7 +1900,7 @@ function renderHeatmap() {
     if ((f.data[h] ?? 0) < sp) { f.total += sp - (f.data[h] ?? 0); f.data[h] = sp; }
   }
 
-  const constraints = [...facilityMap.values()].sort((a, b) => b.total - a.total).slice(0, 10);
+  const constraints = [...facilityMap.values()].sort((a, b) => b.total - a.total);
   const maxVal = Math.max(...constraints.flatMap(c => Object.values(c.data)));
 
   let html = `<div class="heatmap">`;
