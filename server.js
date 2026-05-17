@@ -66,11 +66,16 @@ const routes = {
   "/api/pjm/status": handleStatus,
   "/api/pjm/pnodes": handlePnodes,
   "/api/pjm/da-lmp/zone": handleZoneLmp,
+  "/api/pjm/da-lmp/zone/monthly": handleZoneLmpMonthly,
   "/api/pjm/rt-lmp/zone": handleZoneRtLmp,
+  "/api/pjm/rt-lmp/zone/monthly": handleZoneRtLmpMonthly,
+  "/api/pjm/dart/monthly": handleDartMonthly,
   "/api/pjm/constraints/transmission": handleTransmissionConstraints,
   "/api/pjm/constraints/binding": handleBindingConstraints,
+  "/api/pjm/constraints/binding/monthly": handleBindingConstraintsMonthly,
   "/api/pjm/constraints/rt-binding": handleRtBindingConstraints,
   "/api/pjm/renewables": handleRenewables,
+  "/api/pjm/renewables/monthly": handleRenewablesMonthly,
   "/api/analysis": handleAnalysis
 };
 
@@ -335,6 +340,140 @@ async function handleRenewables(_req, res, url) {
   });
 }
 
+async function handleZoneLmpMonthly(_req, res, url) {
+  const zone = cleanUpper(url.searchParams.get("zone") || "PSEG");
+  const month = requireYearMonth(url.searchParams.get("month"));
+  const pnodeId = Number(url.searchParams.get("pnode_id") || ZONE_PNODES[zone]);
+  if (!pnodeId) { sendJson(res, 400, { error: `Unknown zone '${zone}'.` }); return; }
+
+  const rows = await getPjmRows("da_hrl_lmps", {
+    row_is_current: "true",
+    pnode_id: String(pnodeId),
+    datetime_beginning_ept: marketMonthRange(month)
+  }, { ttlMs: monthCacheTtl(month) });
+
+  const normalized = rows.map(row => ({
+    datetime_beginning_ept: normalizeEpt(row.datetime_beginning_ept),
+    total_lmp_da: numeric(row.total_lmp_da),
+    congestion_price_da: numeric(row.congestion_price_da),
+    marginal_loss_price_da: numeric(row.marginal_loss_price_da)
+  })).filter(row => String(row.datetime_beginning_ept).slice(0, 7) === month);
+
+  const days = aggregateDailyLmp(normalized);
+  const allAvgs = days.map(d => d.avg_lmp_da).filter(Number.isFinite);
+  const peakDay = days.reduce((best, d) => (d.max_lmp_da ?? -Infinity) > (best?.max_lmp_da ?? -Infinity) ? d : best, null);
+  sendJson(res, 200, { zone, month, days, monthSummary: { avg_lmp: avg(allAvgs), peak_day: peakDay?.date ?? null, peak_lmp: peakDay?.max_lmp_da ?? null } });
+}
+
+async function handleZoneRtLmpMonthly(_req, res, url) {
+  const zone = cleanUpper(url.searchParams.get("zone") || "PSEG");
+  const month = requireYearMonth(url.searchParams.get("month"));
+  const pnodeId = Number(url.searchParams.get("pnode_id") || ZONE_PNODES[zone]);
+  if (!pnodeId) { sendJson(res, 400, { error: `Unknown zone '${zone}'.` }); return; }
+
+  const rows = await getPjmRows("rt_hrl_lmps", {
+    row_is_current: "true",
+    pnode_id: String(pnodeId),
+    datetime_beginning_ept: marketMonthRange(month)
+  }, { ttlMs: monthCacheTtl(month) });
+
+  const normalized = rows.map(row => ({
+    datetime_beginning_ept: normalizeEpt(row.datetime_beginning_ept),
+    total_lmp_rt: numeric(row.total_lmp_rt),
+    congestion_price_rt: numeric(row.congestion_price_rt)
+  })).filter(row => String(row.datetime_beginning_ept).slice(0, 7) === month);
+
+  const days = aggregateDailyRt(normalized);
+  const allAvgs = days.map(d => d.avg_lmp_rt).filter(Number.isFinite);
+  const peakDay = days.reduce((best, d) => (d.max_lmp_rt ?? -Infinity) > (best?.max_lmp_rt ?? -Infinity) ? d : best, null);
+  sendJson(res, 200, { zone, month, days, monthSummary: { avg_lmp_rt: avg(allAvgs), peak_day: peakDay?.date ?? null, peak_lmp_rt: peakDay?.max_lmp_rt ?? null } });
+}
+
+async function handleDartMonthly(_req, res, url) {
+  const zone = cleanUpper(url.searchParams.get("zone") || "PSEG");
+  const month = requireYearMonth(url.searchParams.get("month"));
+  const pnodeId = Number(url.searchParams.get("pnode_id") || ZONE_PNODES[zone]);
+  if (!pnodeId) { sendJson(res, 400, { error: `Unknown zone '${zone}'.` }); return; }
+
+  const ttlMs = monthCacheTtl(month);
+  const [daRows, rtRows] = await Promise.all([
+    getPjmRows("da_hrl_lmps", { row_is_current: "true", pnode_id: String(pnodeId), datetime_beginning_ept: marketMonthRange(month) }, { ttlMs }),
+    getPjmRows("rt_hrl_lmps", { row_is_current: "true", pnode_id: String(pnodeId), datetime_beginning_ept: marketMonthRange(month) }, { ttlMs })
+  ]);
+
+  const normDa = daRows.map(r => ({
+    datetime_beginning_ept: normalizeEpt(r.datetime_beginning_ept),
+    total_lmp_da: numeric(r.total_lmp_da),
+    congestion_price_da: numeric(r.congestion_price_da)
+  })).filter(r => String(r.datetime_beginning_ept).slice(0, 7) === month);
+
+  const normRt = rtRows.map(r => ({
+    datetime_beginning_ept: normalizeEpt(r.datetime_beginning_ept),
+    total_lmp_rt: numeric(r.total_lmp_rt),
+    congestion_price_rt: numeric(r.congestion_price_rt)
+  })).filter(r => String(r.datetime_beginning_ept).slice(0, 7) === month);
+
+  const days = aggregateDailyDart(normDa, normRt);
+  const darts = days.map(d => d.avg_dart).filter(v => v != null);
+  const worstRt = days.reduce((best, d) => (d.max_rt_premium ?? -Infinity) > (best?.max_rt_premium ?? -Infinity) ? d : best, null);
+  const worstDa = days.reduce((best, d) => (d.max_da_overshoot ?? Infinity) < (best?.max_da_overshoot ?? Infinity) ? d : best, null);
+  sendJson(res, 200, {
+    zone, month, days,
+    monthSummary: {
+      avg_dart: avg(darts),
+      worst_rt_premium_day: worstRt?.date ?? null, worst_rt_premium: worstRt?.max_rt_premium ?? null,
+      worst_da_overshoot_day: worstDa?.date ?? null, worst_da_overshoot: worstDa?.max_da_overshoot ?? null
+    }
+  });
+}
+
+async function handleRenewablesMonthly(_req, res, url) {
+  const area = cleanUpper(url.searchParams.get("area") || "RTO");
+  const month = requireYearMonth(url.searchParams.get("month"));
+  const ttlMs = monthCacheTtl(month);
+  const [solarRows, windRows] = await Promise.all([
+    getPjmRows("solar_gen", { area, datetime_beginning_ept: marketMonthRange(month) }, { ttlMs }),
+    getPjmRows("wind_gen",  { area, datetime_beginning_ept: marketMonthRange(month) }, { ttlMs })
+  ]);
+
+  const normSolar = solarRows.map(r => ({ ...r, datetime_beginning_ept: normalizeEpt(r.datetime_beginning_ept) }))
+    .filter(r => String(r.datetime_beginning_ept).slice(0, 7) === month);
+  const normWind = windRows.map(r => ({ ...r, datetime_beginning_ept: normalizeEpt(r.datetime_beginning_ept) }))
+    .filter(r => String(r.datetime_beginning_ept).slice(0, 7) === month);
+
+  const days = aggregateDailyRenewables(normSolar, normWind);
+  const allSolar = days.map(d => d.avg_solar_mw).filter(Number.isFinite);
+  const allWind  = days.map(d => d.avg_wind_mw).filter(Number.isFinite);
+  const peakSolarDay = days.reduce((best, d) => (d.peak_solar_mw ?? -Infinity) > (best?.peak_solar_mw ?? -Infinity) ? d : best, null);
+  const peakWindDay  = days.reduce((best, d) => (d.peak_wind_mw  ?? -Infinity) > (best?.peak_wind_mw  ?? -Infinity) ? d : best, null);
+  sendJson(res, 200, {
+    area, month, days,
+    monthSummary: {
+      avg_solar_mw: avg(allSolar), avg_wind_mw: avg(allWind),
+      peak_solar_day: peakSolarDay?.date ?? null, peak_solar_mw: peakSolarDay?.peak_solar_mw ?? null,
+      peak_wind_day: peakWindDay?.date ?? null, peak_wind_mw: peakWindDay?.peak_wind_mw ?? null
+    }
+  });
+}
+
+async function handleBindingConstraintsMonthly(_req, res, url) {
+  const month = requireYearMonth(url.searchParams.get("month"));
+  const rows = await getPjmRows("da_marginal_value", {
+    datetime_beginning_ept: marketMonthRange(month)
+  }, { ttlMs: monthCacheTtl(month) });
+
+  const filtered = rows.map(row => ({
+    datetime_beginning_ept: normalizeEpt(row.datetime_beginning_ept),
+    monitored_facility: row.monitored_facility,
+    contingency_facility: row.contingency_facility,
+    shadow_price: numeric(row.shadow_price)
+  })).filter(row => String(row.datetime_beginning_ept).slice(0, 7) === month);
+
+  const facilities = aggregateMonthlyConstraints(filtered);
+  const uniqueCount = new Set(filtered.map(r => `${r.monitored_facility}||${r.contingency_facility || ""}`)).size;
+  sendJson(res, 200, { month, total_unique_constraints: uniqueCount, facilities });
+}
+
 async function handleAnalysis(req, res) {
   if (req.method !== "POST") {
     sendJson(res, 405, { error: "Use POST" });
@@ -577,6 +716,97 @@ function summarizeRenewables(rows) {
   };
 }
 
+function aggregateDailyLmp(rows) {
+  const byDay = groupByDay(rows);
+  return [...byDay.entries()].sort((a, b) => a[0].localeCompare(b[0])).map(([date, dayRows]) => {
+    const lmps  = dayRows.map(r => r.total_lmp_da).filter(Number.isFinite);
+    const congs = dayRows.map(r => r.congestion_price_da).filter(Number.isFinite);
+    const maxRow = dayRows.reduce((b, r) => (r.total_lmp_da ?? -Infinity) > (b?.total_lmp_da ?? -Infinity) ? r : b, null);
+    const minRow = dayRows.reduce((b, r) => (r.total_lmp_da ??  Infinity) < (b?.total_lmp_da ??  Infinity) ? r : b, null);
+    return { date, avg_lmp_da: avg(lmps), max_lmp_da: maxRow?.total_lmp_da ?? null, min_lmp_da: minRow?.total_lmp_da ?? null, avg_congestion_da: avg(congs) };
+  });
+}
+
+function aggregateDailyRt(rows) {
+  const byDay = groupByDay(rows);
+  return [...byDay.entries()].sort((a, b) => a[0].localeCompare(b[0])).map(([date, dayRows]) => {
+    const lmps  = dayRows.map(r => r.total_lmp_rt).filter(Number.isFinite);
+    const congs = dayRows.map(r => r.congestion_price_rt).filter(Number.isFinite);
+    const maxRow = dayRows.reduce((b, r) => (r.total_lmp_rt ?? -Infinity) > (b?.total_lmp_rt ?? -Infinity) ? r : b, null);
+    return { date, avg_lmp_rt: avg(lmps), max_lmp_rt: maxRow?.total_lmp_rt ?? null, avg_congestion_rt: avg(congs) };
+  });
+}
+
+function aggregateDailyDart(daRows, rtRows) {
+  const rtByHour = new Map();
+  for (const row of rtRows) rtByHour.set(String(row.datetime_beginning_ept || "").slice(0, 13), row);
+
+  const byDay = new Map();
+  for (const da of daRows) {
+    const key = String(da.datetime_beginning_ept || "").slice(0, 13);
+    const day = key.slice(0, 10);
+    if (!day) continue;
+    const rt = rtByHour.get(key);
+    const dart = (da.total_lmp_da != null && rt?.total_lmp_rt != null) ? round(rt.total_lmp_rt - da.total_lmp_da) : null;
+    if (!byDay.has(day)) byDay.set(day, []);
+    byDay.get(day).push({ da: da.total_lmp_da, rt: rt?.total_lmp_rt ?? null, dart });
+  }
+  return [...byDay.entries()].sort((a, b) => a[0].localeCompare(b[0])).map(([date, pairs]) => {
+    const darts = pairs.map(p => p.dart).filter(v => v != null);
+    const das   = pairs.map(p => p.da).filter(Number.isFinite);
+    const rts   = pairs.map(p => p.rt).filter(Number.isFinite);
+    return {
+      date,
+      avg_dart: avg(darts),
+      avg_da: avg(das),
+      avg_rt: avg(rts),
+      hours_rt_above: darts.filter(v => v > 0).length,
+      max_rt_premium:   darts.length ? round(Math.max(...darts)) : null,
+      max_da_overshoot: darts.length ? round(Math.min(...darts)) : null
+    };
+  });
+}
+
+function aggregateDailyRenewables(solarRows, windRows) {
+  const byDay = new Map();
+  for (const row of solarRows) {
+    const day = String(row.datetime_beginning_ept || "").slice(0, 10);
+    if (!day) continue;
+    if (!byDay.has(day)) byDay.set(day, { solar: [], wind: [] });
+    byDay.get(day).solar.push(numeric(row.solar_generation_mw));
+  }
+  for (const row of windRows) {
+    const day = String(row.datetime_beginning_ept || "").slice(0, 10);
+    if (!day) continue;
+    if (!byDay.has(day)) byDay.set(day, { solar: [], wind: [] });
+    byDay.get(day).wind.push(numeric(row.wind_generation_mw));
+  }
+  return [...byDay.entries()].sort((a, b) => a[0].localeCompare(b[0])).map(([date, { solar, wind }]) => {
+    const sF = solar.filter(Number.isFinite);
+    const wF = wind.filter(Number.isFinite);
+    return {
+      date,
+      avg_solar_mw: avg(sF), peak_solar_mw: sF.length ? round(Math.max(...sF)) : null,
+      avg_wind_mw:  avg(wF), peak_wind_mw:  wF.length ? round(Math.max(...wF)) : null
+    };
+  });
+}
+
+function aggregateMonthlyConstraints(rows) {
+  const facilityMap = new Map();
+  for (const row of rows) {
+    const key = `${row.monitored_facility}||${row.contingency_facility || ""}`;
+    if (!facilityMap.has(key)) {
+      facilityMap.set(key, { monitored_facility: row.monitored_facility, contingency_facility: row.contingency_facility || null, hours_active: 0, peak_shadow_price: 0 });
+    }
+    const entry = facilityMap.get(key);
+    entry.hours_active += 1;
+    const sp = Math.abs(row.shadow_price || 0);
+    if (sp > entry.peak_shadow_price) entry.peak_shadow_price = sp;
+  }
+  return [...facilityMap.values()].sort((a, b) => b.hours_active - a.hours_active).slice(0, 15);
+}
+
 function shrinkForModel(body) {
   const mode = body?.context?.mode ?? "single";
 
@@ -758,6 +988,35 @@ function marketDayRange(date) {
     String(next.getDate()).padStart(2, "0")
   ].join("-");
   return `${date} 00:00 to ${end} 00:00`;
+}
+
+function marketMonthRange(yearMonth) {
+  const [y, m] = yearMonth.split("-").map(Number);
+  const end = new Date(y, m, 1);
+  const endStr = `${end.getFullYear()}-${String(end.getMonth() + 1).padStart(2, "0")}-01`;
+  return `${yearMonth}-01 00:00 to ${endStr} 00:00`;
+}
+
+function requireYearMonth(value) {
+  const ym = value || new Date().toISOString().slice(0, 7);
+  if (!/^\d{4}-\d{2}$/.test(ym)) throw new Error("Month must use YYYY-MM format.");
+  return ym;
+}
+
+function monthCacheTtl(yearMonth) {
+  const cur = new Date().toISOString().slice(0, 7);
+  return yearMonth < cur ? 24 * 60 * 60 * 1000 : 5 * 60 * 1000;
+}
+
+function groupByDay(rows, field = "datetime_beginning_ept") {
+  const map = new Map();
+  for (const row of rows) {
+    const day = String(row[field] || "").slice(0, 10);
+    if (!day) continue;
+    if (!map.has(day)) map.set(day, []);
+    map.get(day).push(row);
+  }
+  return map;
 }
 
 function requireDate(value) {
