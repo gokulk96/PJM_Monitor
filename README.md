@@ -34,7 +34,8 @@ A real-time dashboard for monitoring PJM electricity market data — day-ahead a
 
 | Day-Ahead — Multi-zone | Monthly — Binding Constraints |
 |---|---|
-| _(add screenshot)_ | _(add screenshot)_ |
+| <img width="2485" height="1165" alt="image" src="https://github.com/user-attachments/assets/03c7e877-0c3f-48cc-8e23-e61ccf50dd18" />
+ | <img width="1597" height="990" alt="image" src="https://github.com/user-attachments/assets/c76c5f39-e9cf-4859-b350-24085e91b6ae" /> |
 
 ---
 
