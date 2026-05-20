@@ -42,7 +42,7 @@ A real-time dashboard for monitoring PJM electricity market data — day-ahead a
 
 - Node.js ≥ 20
 - A [PJM Data API](https://dataminer2.pjm.com/list) subscription key
-- _(Optional)_ An [OpenRouter](https://openrouter.ai) API key for AI analysis
+- _(Optional)_ A [Google Gemini API](https://aistudio.google.com/apikey) key for AI analysis (or an [OpenRouter](https://openrouter.ai) key as fallback)
 
 ---
 
@@ -69,8 +69,10 @@ Open `http://localhost:3000`.
 | `PJM_AUTH_MODE` | No | `header` | `header`, `query`, or `both` |
 | `PJM_RATE_LIMIT_PER_MINUTE` | No | `6` | Max PJM API calls per minute |
 | `PJM_TIMEOUT_SECONDS` | No | `30` | Per-request timeout in seconds |
-| `OPENROUTER_API_KEY` | No | — | Enables the AI analysis feature |
-| `OPENROUTER_MODEL` | No | `deepseek/deepseek-v4-flash` | Model used for analysis |
+| `GEMINI_API_KEY` | No | — | Enables AI analysis via Google Gemini (preferred) |
+| `GEMINI_MODEL` | No | `gemini-2.0-flash` | Gemini model to use |
+| `OPENROUTER_API_KEY` | No | — | Fallback AI provider if `GEMINI_API_KEY` is not set |
+| `OPENROUTER_MODEL` | No | `deepseek/deepseek-v4-flash` | OpenRouter model to use |
 | `OPENROUTER_SITE_URL` | No | `http://localhost:3000` | Sent as HTTP-Referer to OpenRouter |
 | `OPENROUTER_APP_NAME` | No | `PJM Market Analyst` | Sent as X-Title to OpenRouter |
 | `ACCESS_TOKEN` | No | _(empty = open)_ | Bearer token to restrict access |
