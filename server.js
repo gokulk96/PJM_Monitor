@@ -17,6 +17,7 @@ const PJM_AUTH_MODE = (process.env.PJM_AUTH_MODE || "header").toLowerCase();
 const PJM_TIMEOUT_SECONDS = Number(process.env.PJM_TIMEOUT_SECONDS || 30);
 const PJM_RATE_LIMIT_PER_MINUTE = Number(process.env.PJM_RATE_LIMIT_PER_MINUTE || 6);
 const OPENROUTER_MODEL = process.env.OPENROUTER_MODEL || "deepseek/deepseek-v4-flash";
+const GEMINI_MODEL = process.env.GEMINI_MODEL || "gemini-2.0-flash";
 
 const ZONE_PNODES = {
   "PJM-RTO": 1,
@@ -113,6 +114,8 @@ async function handleStatus(_req, res) {
     pjmApiKeyConfigured: Boolean(PJM_API_KEY),
     openRouterConfigured: Boolean(process.env.OPENROUTER_API_KEY),
     openRouterModel: OPENROUTER_MODEL,
+    geminiConfigured: Boolean(process.env.GEMINI_API_KEY),
+    geminiModel: GEMINI_MODEL,
     zones: Object.keys(ZONE_PNODES),
     renewableAreas: RENEWABLE_AREAS
   });
@@ -479,8 +482,11 @@ async function handleAnalysis(req, res) {
     sendJson(res, 405, { error: "Use POST" });
     return;
   }
-  if (!process.env.OPENROUTER_API_KEY) {
-    sendJson(res, 400, { error: "OPENROUTER_API_KEY is not configured on the server." });
+
+  const useGemini = Boolean(process.env.GEMINI_API_KEY);
+  const useOpenRouter = Boolean(process.env.OPENROUTER_API_KEY);
+  if (!useGemini && !useOpenRouter) {
+    sendJson(res, 400, { error: "No AI API key configured. Set GEMINI_API_KEY or OPENROUTER_API_KEY." });
     return;
   }
 
@@ -508,16 +514,17 @@ async function handleAnalysis(req, res) {
 
   const isRt   = mode === "rt";
   const isDart = mode === "dart";
-  const intro  = isRt   ? "You are analyzing PJM real-time market data for a power-market operator."
-               : isDart ? "You are analyzing PJM day-ahead vs real-time spread data for a power-market operator."
-               :          "You are analyzing PJM day-ahead market data for a power-market operator.";
+  const systemPrompt = isRt   ? "You are analyzing PJM real-time market data for a power-market operator."
+                     : isDart ? "You are analyzing PJM day-ahead vs real-time spread data for a power-market operator."
+                     :          "You are analyzing PJM day-ahead market data for a power-market operator.";
 
   const sections = isRt   ? "Executive Read, Price Drivers, Volatility Events, Congestion Drivers, Watch Items"
                  : isDart ? "Executive Read, DART Drivers, Hour Analysis, Trading Implications, Watch Items"
                  :          `Executive Read, Price Drivers, Constraints, Renewables, Watch Items${extraSections}`;
 
-  const prompt = [
-    intro,
+  const userPrompt = [
+    "You are a senior PJM power-market analyst.",
+    systemPrompt,
     "Use the supplied JSON only. Be concise, specific, and cite observed values.",
     modeGuide[mode] ?? modeGuide.single,
     `Return markdown with sections: ${sections}.`,
@@ -528,58 +535,69 @@ async function handleAnalysis(req, res) {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), PJM_TIMEOUT_SECONDS * 1000);
 
-  async function callOpenRouter(tokens) {
-    const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-      method: "POST",
-      signal: controller.signal,
-      headers: {
-        "Authorization": `Bearer ${process.env.OPENROUTER_API_KEY}`,
-        "Content-Type": "application/json",
-        "HTTP-Referer": process.env.OPENROUTER_SITE_URL || `http://localhost:${PORT}`,
-        "X-Title": process.env.OPENROUTER_APP_NAME || "PJM Market Analyst"
-      },
-      body: JSON.stringify({
-        model: OPENROUTER_MODEL,
-        messages: [
-          { role: "system", content: "You are a senior PJM power-market analyst." },
-          { role: "user", content: prompt }
-        ],
-        temperature: 0.2,
-        max_tokens: tokens
-      })
-    });
-    const json = await response.json().catch(() => ({}));
-    return { response, json };
-  }
-
   try {
-    let { response, json } = await callOpenRouter(maxTokens);
-
-    // If OpenRouter says we can't afford the requested tokens, parse the limit and retry once.
-    if (!response.ok) {
-      const msg = json?.error?.message || json?.message || String(json?.error ?? `HTTP ${response.status}`);
-      const affordMatch = /can only afford (\d+)/i.exec(msg);
-      if (affordMatch) {
-        const affordable = Math.max(200, Number(affordMatch[1]) - 10);
-        console.log(`OpenRouter credit limit — retrying with ${affordable} tokens (was ${maxTokens})`);
-        ({ response, json } = await callOpenRouter(affordable));
+    if (useGemini) {
+      const model = GEMINI_MODEL;
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${process.env.GEMINI_API_KEY}`;
+      const response = await fetch(url, {
+        method: "POST",
+        signal: controller.signal,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          contents: [{ role: "user", parts: [{ text: userPrompt }] }],
+          generationConfig: { temperature: 0.2, maxOutputTokens: maxTokens }
+        })
+      });
+      const json = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        const msg = json?.error?.message || json?.error?.status || `HTTP ${response.status}`;
+        console.error(`Gemini error ${response.status}:`, JSON.stringify(json).slice(0, 400));
+        sendJson(res, response.status, { error: `Gemini: ${msg}`, detail: json });
+        return;
       }
+      const text = json.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
+      sendJson(res, 200, {
+        model,
+        analysis: text,
+        rawUsage: json.usageMetadata || null
+      });
+    } else {
+      // Fallback: OpenRouter
+      const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+        method: "POST",
+        signal: controller.signal,
+        headers: {
+          "Authorization": `Bearer ${process.env.OPENROUTER_API_KEY}`,
+          "Content-Type": "application/json",
+          "HTTP-Referer": process.env.OPENROUTER_SITE_URL || `http://localhost:${PORT}`,
+          "X-Title": process.env.OPENROUTER_APP_NAME || "PJM Market Analyst"
+        },
+        body: JSON.stringify({
+          model: OPENROUTER_MODEL,
+          messages: [
+            { role: "system", content: "You are a senior PJM power-market analyst." },
+            { role: "user", content: userPrompt }
+          ],
+          temperature: 0.2,
+          max_tokens: maxTokens
+        })
+      });
+      const json = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        const msg = json?.error?.message || json?.message || String(json?.error ?? `HTTP ${response.status}`);
+        console.error(`OpenRouter error ${response.status}:`, JSON.stringify(json).slice(0, 400));
+        sendJson(res, response.status, { error: `OpenRouter: ${msg}`, detail: json });
+        return;
+      }
+      sendJson(res, 200, {
+        model: OPENROUTER_MODEL,
+        analysis: json.choices?.[0]?.message?.content || "",
+        rawUsage: json.usage || null
+      });
     }
-
-    if (!response.ok) {
-      const msg = json?.error?.message || json?.message || String(json?.error ?? `HTTP ${response.status}`);
-      console.error(`OpenRouter error ${response.status}:`, JSON.stringify(json).slice(0, 400));
-      sendJson(res, response.status, { error: `OpenRouter: ${msg}`, detail: json });
-      return;
-    }
-    sendJson(res, 200, {
-      model: OPENROUTER_MODEL,
-      analysis: json.choices?.[0]?.message?.content || "",
-      rawUsage: json.usage || null
-    });
   } catch (err) {
-    clearTimeout(timeout);
-    const msg = err.name === "AbortError" ? `OpenRouter: timed out after ${PJM_TIMEOUT_SECONDS}s` : `OpenRouter: ${err.message}`;
+    const provider = useGemini ? "Gemini" : "OpenRouter";
+    const msg = err.name === "AbortError" ? `${provider}: timed out after ${PJM_TIMEOUT_SECONDS}s` : `${provider}: ${err.message}`;
     console.error("Analysis error:", err.message);
     sendJson(res, 502, { error: msg });
   } finally {

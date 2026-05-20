@@ -938,7 +938,7 @@
           <span class="ai-tag"><span class="ai-dot"></span>AI</span>
         </div>
         <div class="panel-head-right">
-          <span class="panel-sub" style="border:none;padding:0;" id="analysis-model-tag">OpenRouter</span>
+          <span class="panel-sub" style="border:none;padding:0;" id="analysis-model-tag">Gemini</span>
           <button id="btn-analysis" class="btn-run">
             <svg viewBox="0 0 12 12" fill="none"><path d="M3 2.5l6 3.5-6 3.5v-7z" fill="currentColor"/></svg>
             Run
@@ -1085,7 +1085,7 @@
           <span class="ai-tag"><span class="ai-dot"></span>AI</span>
         </div>
         <div class="panel-head-right">
-          <span class="panel-sub" style="border:none;padding:0;" id="rt-analysis-model-tag">OpenRouter</span>
+          <span class="panel-sub" style="border:none;padding:0;" id="rt-analysis-model-tag">Gemini</span>
           <button id="rt-btn-analysis" class="btn-run">
             <svg viewBox="0 0 12 12" fill="none"><path d="M3 2.5l6 3.5-6 3.5v-7z" fill="currentColor"/></svg>
             Run
@@ -1210,7 +1210,7 @@
           <span class="ai-tag"><span class="ai-dot"></span>AI</span>
         </div>
         <div class="panel-head-right">
-          <span class="panel-sub" style="border:none;padding:0;" id="dart-analysis-model-tag">OpenRouter</span>
+          <span class="panel-sub" style="border:none;padding:0;" id="dart-analysis-model-tag">Gemini</span>
           <button id="dart-btn-analysis" class="btn-run">
             <svg viewBox="0 0 12 12" fill="none"><path d="M3 2.5l6 3.5-6 3.5v-7z" fill="currentColor"/></svg>
             Run
@@ -1406,10 +1406,13 @@ async function loadStatus() {
   const dartZoneSel = el('dart-zone-select');
   if (dartZoneSel) dartZoneSel.innerHTML = zones.map(z => `<option value="${esc(z)}"${z === S.dartZone ? ' selected' : ''}>${esc(z)}</option>`).join('');
 
-  if (d.openRouterConfigured) {
-    const modelLabel = trunc(d.openRouterModel ?? 'OpenRouter', 28);
+  const aiConfigured = d.geminiConfigured || d.openRouterConfigured;
+  const aiModelLabel = d.geminiConfigured
+    ? trunc(d.geminiModel ?? 'Gemini', 28)
+    : trunc(d.openRouterModel ?? 'OpenRouter', 28);
+  if (aiConfigured) {
     ['analysis-model-tag','rt-analysis-model-tag','dart-analysis-model-tag'].forEach(id => {
-      const el2 = el(id); if (el2) el2.textContent = modelLabel;
+      const el2 = el(id); if (el2) el2.textContent = aiModelLabel;
     });
   } else {
     ['analysis-model-tag','rt-analysis-model-tag','dart-analysis-model-tag'].forEach(id => {
@@ -1417,7 +1420,7 @@ async function loadStatus() {
     });
     ['btn-analysis','rt-btn-analysis','dart-btn-analysis'].forEach(id => {
       const btn = el(id);
-      if (btn) { btn.disabled = true; btn.title = 'OPENROUTER_API_KEY not configured'; }
+      if (btn) { btn.disabled = true; btn.title = 'Set GEMINI_API_KEY or OPENROUTER_API_KEY'; }
     });
   }
 }
