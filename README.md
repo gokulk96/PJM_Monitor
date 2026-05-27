@@ -122,6 +122,12 @@ All endpoints return JSON. Date parameters use `YYYY-MM-DD`; month parameters us
 | GET | `/api/pjm/renewables` | `date`, `area` | Hourly solar and wind generation |
 | GET | `/api/pjm/renewables/monthly` | `month`, `area` | Daily avg renewable generation for a month |
 
+### Emissions
+| Method | Path | Key params | Description |
+|---|---|---|---|
+| GET | `/api/pjm/emissions` | `zone`, `date` | Hourly avg marginal CO₂, SO₂, NOₓ (lb/MWh) |
+| GET | `/api/pjm/emissions/monthly` | `zone`, `month` | Daily avg marginal emissions for a month |
+
 ### PNode Search
 | Method | Path | Key params | Description |
 |---|---|---|---|
@@ -169,6 +175,7 @@ The cache resets on server restart. There is no persistence layer.
 | `da_transconstraints` | DA transmission constraints |
 | `solar_gen` | Solar generation by area |
 | `wind_gen` | Wind generation by area |
+| `fivemin_marginal_emissions` | 5-minute marginal CO₂, SO₂, NOₓ rates (lb/MWh) |
 
 All data is sourced from the [PJM DataMiner 2 API](https://dataminer2.pjm.com/list).
 
