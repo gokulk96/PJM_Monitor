@@ -1391,6 +1391,41 @@
 
 <div id="hm-tip"></div>
 
+<!-- ─── Chat FAB + Panel ─── -->
+<button id="chat-fab" title="Ask AI">
+  <svg viewBox="0 0 24 24" fill="none"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" stroke-linecap="round"/></svg>
+</button>
+
+<div id="chat-panel" role="dialog" aria-label="AI Chat Assistant">
+  <div id="chat-header">
+    <div id="chat-header-left">
+      <span class="ai-tag"><span class="ai-dot"></span>AI</span>
+      <span class="chat-title">Market Assistant</span>
+    </div>
+    <div style="display:flex;align-items:center;gap:6px;">
+      <button id="chat-clear" title="Clear conversation">Clear</button>
+      <button id="chat-close" title="Close">
+        <svg viewBox="0 0 16 16" fill="none" width="14" height="14"><path d="M12 4 4 12M4 4l8 8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+      </button>
+    </div>
+  </div>
+  <div id="chat-context-bar">
+    <label for="chat-ctx-toggle">
+      <input type="checkbox" id="chat-ctx-toggle" checked>
+      Include current view data
+    </label>
+  </div>
+  <div id="chat-messages">
+    <div class="chat-msg ai">Ask me anything about the current market data, PJM concepts, pricing, congestion, or spreads.</div>
+  </div>
+  <div id="chat-input-wrap">
+    <textarea id="chat-input" placeholder="Ask about the data… (Enter to send)" rows="1"></textarea>
+    <button id="chat-send" title="Send (Enter)">
+      <svg viewBox="0 0 24 24" fill="none"><path d="M22 2 11 13M22 2l-7 20-4-9-9-4 20-7z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </button>
+  </div>
+</div>
+
 <script>
 /* ─── State ─── */
 const S = {
@@ -3448,41 +3483,5 @@ loadAll();
   });
 })();
 </script>
-
-<!-- ─── Chat FAB + Panel ─── -->
-<button id="chat-fab" title="Ask AI">
-  <svg viewBox="0 0 24 24" fill="none"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" stroke-linecap="round"/></svg>
-</button>
-
-<div id="chat-panel" role="dialog" aria-label="AI Chat Assistant">
-  <div id="chat-header">
-    <div id="chat-header-left">
-      <span class="ai-tag"><span class="ai-dot"></span>AI</span>
-      <span class="chat-title">Market Assistant</span>
-    </div>
-    <div style="display:flex;align-items:center;gap:6px;">
-      <button id="chat-clear" title="Clear conversation">Clear</button>
-      <button id="chat-close" title="Close">
-        <svg viewBox="0 0 16 16" fill="none" width="14" height="14"><path d="M12 4 4 12M4 4l8 8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
-      </button>
-    </div>
-  </div>
-  <div id="chat-context-bar">
-    <label for="chat-ctx-toggle">
-      <input type="checkbox" id="chat-ctx-toggle" checked>
-      Include current view data
-    </label>
-  </div>
-  <div id="chat-messages">
-    <div class="chat-msg ai">Ask me anything about the current market data, PJM concepts, pricing, congestion, or spreads.</div>
-  </div>
-  <div id="chat-input-wrap">
-    <textarea id="chat-input" placeholder="Ask about the data… (Enter to send)" rows="1"></textarea>
-    <button id="chat-send" title="Send (Enter)">
-      <svg viewBox="0 0 24 24" fill="none"><path d="M22 2 11 13M22 2l-7 20-4-9-9-4 20-7z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
-    </button>
-  </div>
-</div>
-
 </body>
 </html>
