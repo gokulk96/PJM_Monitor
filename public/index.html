@@ -406,6 +406,9 @@
   .ren-stat-val { font-family: var(--mono); font-size: 17px; font-weight: 500; font-variant-numeric: tabular-nums; letter-spacing: -0.01em; }
   .ren-stat-val.solar { color: var(--amber); }
   .ren-stat-val.wind  { color: var(--blue-2); }
+  .ren-stat-val.co2   { color: #f87171; }
+  .ren-stat-val.so2   { color: #fb923c; }
+  .ren-stat-val.nox   { color: #facc15; }
 
   /* AI panel */
   .ai-tag {
@@ -934,6 +937,37 @@
     <section class="panel">
       <div class="panel-head">
         <div class="panel-head-left">
+          <span class="panel-title">Marginal Emissions</span>
+          <span class="panel-sub">lb/MWh · hourly avg</span>
+        </div>
+        <div class="panel-head-right">
+          <span class="legend-item"><span class="legend-swatch" style="background:#f87171;"></span>CO₂</span>
+          <span class="legend-item"><span class="legend-swatch" style="background:#fb923c;"></span>SO₂ ×100</span>
+          <span class="legend-item"><span class="legend-swatch" style="background:#facc15;"></span>NOₓ ×100</span>
+        </div>
+      </div>
+      <div class="panel-body">
+        <div class="ren-stats">
+          <div class="ren-stat">
+            <div class="ren-stat-label">Avg CO₂</div>
+            <div class="ren-stat-val co2" id="em-avg-co2">--</div>
+          </div>
+          <div class="ren-stat">
+            <div class="ren-stat-label">Peak CO₂</div>
+            <div class="ren-stat-val co2" id="em-peak-co2">--</div>
+          </div>
+          <div class="ren-stat">
+            <div class="ren-stat-label">Avg NOₓ</div>
+            <div class="ren-stat-val nox" id="em-avg-nox">--</div>
+          </div>
+        </div>
+        <div class="chart-wrap" style="height:170px;"><canvas id="emissionsChart"></canvas></div>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head">
+        <div class="panel-head-left">
           <span class="panel-title">Market Analysis</span>
           <span class="ai-tag"><span class="ai-dot"></span>AI</span>
         </div>
@@ -1278,9 +1312,11 @@ const S = {
   rtMonth: null,
   dartMonth: null,
 
+  emissions: null,
   daMonthlyLmp: null,
   daMonthlyBinding: null,
   daMonthlyRenewables: null,
+  daMonthlyEmissions: null,
   rtMonthlyData: null,
   dartMonthlyData: null,
 };
@@ -1446,13 +1482,14 @@ async function loadAll() {
         el('footer-ts').textContent = 'Last sync: --';
         return;
       }
-      const [r0, rz1, rz2, rb, rt, rn] = await Promise.allSettled([
+      const [r0, rz1, rz2, rb, rt, rn, re] = await Promise.allSettled([
         apiFetch(`/api/pjm/da-lmp/zone?pnode_id=${encodeURIComponent(S.pnodeId)}&date=${S.date}`),
         S.customCompare[0] ? apiFetch(`/api/pjm/da-lmp/zone?zone=${encodeURIComponent(S.customCompare[0])}&date=${S.date}`) : Promise.resolve(null),
         S.customCompare[1] ? apiFetch(`/api/pjm/da-lmp/zone?zone=${encodeURIComponent(S.customCompare[1])}&date=${S.date}`) : Promise.resolve(null),
         apiFetch(`/api/pjm/constraints/binding?date=${S.date}`),
         apiFetch(`/api/pjm/constraints/transmission?date=${S.date}`),
-        apiFetch(`/api/pjm/renewables?date=${S.date}&area=${encodeURIComponent(S.area)}`)
+        apiFetch(`/api/pjm/renewables?date=${S.date}&area=${encodeURIComponent(S.area)}`),
+        apiFetch(`/api/pjm/emissions?date=${S.date}&zone=${encodeURIComponent(S.zone1)}`)
       ]);
       S.lmpCustom      = r0.status  === 'fulfilled' ? r0.value  : null;
       S.lmpCustomZones = [
@@ -1463,37 +1500,42 @@ async function loadAll() {
       S.binding     = rb.status === 'fulfilled' ? rb.value : null;
       S.transmission= rt.status === 'fulfilled' ? rt.value : null;
       S.renewables  = rn.status === 'fulfilled' ? rn.value : null;
+      S.emissions   = re.status === 'fulfilled' ? re.value : null;
     } else if (S.mode === 'multi') {
-      const [lmpResults, rb, rt, rn] = await Promise.allSettled([
+      const [lmpResults, rb, rt, rn, re] = await Promise.allSettled([
         Promise.allSettled(S.multiZones.map(z =>
           z ? apiFetch(`/api/pjm/da-lmp/zone?zone=${encodeURIComponent(z)}&date=${S.date}`) : Promise.resolve(null)
         )),
         apiFetch(`/api/pjm/constraints/binding?date=${S.date}`),
         apiFetch(`/api/pjm/constraints/transmission?date=${S.date}`),
-        apiFetch(`/api/pjm/renewables?date=${S.date}&area=${encodeURIComponent(S.area)}`)
+        apiFetch(`/api/pjm/renewables?date=${S.date}&area=${encodeURIComponent(S.area)}`),
+        apiFetch(`/api/pjm/emissions?date=${S.date}&zone=${encodeURIComponent(S.multiZones[0] || S.zone1)}`)
       ]);
       S.lmpMulti    = (lmpResults.status === 'fulfilled' ? lmpResults.value : []).map(r => r?.status === 'fulfilled' ? r.value : null);
       S.lmp1        = S.lmpMulti[0];
       S.binding     = rb.status === 'fulfilled' ? rb.value : null;
       S.transmission= rt.status === 'fulfilled' ? rt.value : null;
       S.renewables  = rn.status === 'fulfilled' ? rn.value : null;
+      S.emissions   = re.status === 'fulfilled' ? re.value : null;
     } else {
       const zone2Fetch = S.mode === 'compare'
         ? apiFetch(`/api/pjm/da-lmp/zone?zone=${encodeURIComponent(S.zone2)}&date=${S.date}`)
         : Promise.resolve(null);
 
-      const [r1, r2, rb, rt, rn] = await Promise.allSettled([
+      const [r1, r2, rb, rt, rn, re] = await Promise.allSettled([
         apiFetch(`/api/pjm/da-lmp/zone?zone=${encodeURIComponent(S.zone1)}&date=${S.date}`),
         zone2Fetch,
         apiFetch(`/api/pjm/constraints/binding?date=${S.date}`),
         apiFetch(`/api/pjm/constraints/transmission?date=${S.date}`),
-        apiFetch(`/api/pjm/renewables?date=${S.date}&area=${encodeURIComponent(S.area)}`)
+        apiFetch(`/api/pjm/renewables?date=${S.date}&area=${encodeURIComponent(S.area)}`),
+        apiFetch(`/api/pjm/emissions?date=${S.date}&zone=${encodeURIComponent(S.zone1)}`)
       ]);
       S.lmp1        = r1.status === 'fulfilled' ? r1.value : null;
       S.lmp2        = r2.status === 'fulfilled' ? r2.value : null;
       S.binding     = rb.status === 'fulfilled' ? rb.value : null;
       S.transmission= rt.status === 'fulfilled' ? rt.value : null;
       S.renewables  = rn.status === 'fulfilled' ? rn.value : null;
+      S.emissions   = re.status === 'fulfilled' ? re.value : null;
     }
 
     render();
@@ -1555,6 +1597,7 @@ function render() {
   renderBinding();
   renderHeatmap();
   renderRenewableStats();
+  renderEmissions();
   renderEvents();
 }
 
@@ -1814,6 +1857,31 @@ function initCharts() {
     ]},
     options: baseOpts(v => (v / 1000).toFixed(1) + 'GW', ctx => ` ${ctx.dataset.label}: ${ctx.parsed.y.toLocaleString()} MW`)
   });
+  CHARTS.emissions = new Chart(el('emissionsChart'), {
+    type: 'line',
+    data: { labels: HOURS, datasets: [
+      { label: 'CO₂ (lb/MWh)',    data: [], borderColor: '#f87171', backgroundColor: 'rgba(248,113,113,0.08)', borderWidth: 1.8, pointRadius: 0, fill: true, tension: 0.3, yAxisID: 'yCo2' },
+      { label: 'SO₂ ×100',        data: [], borderColor: '#fb923c', backgroundColor: 'transparent', borderWidth: 1.2, pointRadius: 0, fill: false, tension: 0.3, yAxisID: 'ySox', borderDash: [3,3] },
+      { label: 'NOₓ ×100',        data: [], borderColor: '#facc15', backgroundColor: 'transparent', borderWidth: 1.2, pointRadius: 0, fill: false, tension: 0.3, yAxisID: 'ySox', borderDash: [5,3] }
+    ]},
+    options: {
+      responsive: true, maintainAspectRatio: false, animation: { duration: 300 },
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          backgroundColor: '#1a1d23', borderColor: '#2a2d35', borderWidth: 1,
+          titleFont: { family: monoFont, size: 10 }, bodyFont: { family: monoFont, size: 11 },
+          callbacks: { label: ctx => ` ${ctx.dataset.label}: ${ctx.parsed.y?.toFixed(3)}` }
+        }
+      },
+      scales: {
+        x: { ...gridStyle },
+        yCo2: { ...gridStyle, position: 'left',  ticks: { ...gridStyle.ticks, callback: v => v + '' } },
+        ySox: { ...gridStyle, position: 'right', grid: { display: false }, ticks: { ...gridStyle.ticks, callback: v => v + '' } }
+      }
+    }
+  });
 }
 
 function rowsByHour(data) {
@@ -1829,6 +1897,7 @@ function updateCharts() {
   c.cong.data.labels   = HOURS.slice();
   c.spread.data.labels = HOURS.slice();
   c.gen.data.labels    = HOURS.slice();
+  if (c.emissions) c.emissions.data.labels = HOURS.slice();
 
   if (S.mode === 'custom') {
     const h0 = rowsByHour(S.lmpCustom);
@@ -2036,6 +2105,40 @@ function renderRenewableStats() {
   } else {
     el('total-mwh').textContent = '--';
   }
+}
+
+function renderEmissions() {
+  const em = S.emissions;
+  const s  = em?.summary;
+  el('em-avg-co2').textContent  = s?.avg_co2  != null ? s.avg_co2.toFixed(2)  + ' lb/MWh' : '--';
+  el('em-peak-co2').textContent = s?.peak_co2 != null ? s.peak_co2.toFixed(2) + ' lb/MWh' : '--';
+  el('em-avg-nox').textContent  = s?.avg_nox  != null ? s.avg_nox.toFixed(4)  + ' lb/MWh' : '--';
+
+  const ch = CHARTS.emissions;
+  if (!ch) return;
+  const rows = em?.rows ?? new Array(24).fill(null);
+  ch.data.datasets[0].data = rows.map(r => r?.marginal_co2_rate ?? null);
+  // Scale SO₂ and NOₓ ×100 so they're visible alongside CO₂ on the same chart
+  ch.data.datasets[1].data = rows.map(r => r?.marginal_so2_rate != null ? round2(r.marginal_so2_rate * 100) : null);
+  ch.data.datasets[2].data = rows.map(r => r?.marginal_nox_rate != null ? round2(r.marginal_nox_rate * 100) : null);
+  ch.data.labels = HOURS.slice();
+  ch.update();
+}
+
+function renderDaMonthlyEmissions(emData) {
+  const days = emData?.days ?? [];
+  const labels = days.map(d => String(Number(d.date.slice(8, 10))));
+  const ch = CHARTS.emissions;
+  if (!ch) return;
+  ch.data.labels = labels;
+  ch.data.datasets[0].data = days.map(d => d.avg_co2);
+  ch.data.datasets[1].data = days.map(d => d.avg_so2 != null ? round2(d.avg_so2 * 100) : null);
+  ch.data.datasets[2].data = days.map(d => d.avg_nox != null ? round2(d.avg_nox * 100) : null);
+  ch.update();
+  const ms = emData?.monthSummary;
+  el('em-avg-co2').textContent  = ms?.avg_co2  != null ? ms.avg_co2.toFixed(2)  + ' lb/MWh' : '--';
+  el('em-peak-co2').textContent = ms?.peak_co2_day ? ms.peak_co2_day.slice(5) : '--';
+  el('em-avg-nox').textContent  = '--';
 }
 
 /* ─── Event feed ─── */
@@ -2540,14 +2643,16 @@ async function loadAllMonthly() {
   try {
     await loadStatus();
     const zone = S.zone1;
-    const [rLmp, rBind, rRen] = await Promise.allSettled([
+    const [rLmp, rBind, rRen, rEm] = await Promise.allSettled([
       apiFetch(`/api/pjm/da-lmp/zone/monthly?zone=${encodeURIComponent(zone)}&month=${ym}`),
       apiFetch(`/api/pjm/constraints/binding/monthly?month=${ym}`),
-      apiFetch(`/api/pjm/renewables/monthly?month=${ym}&area=${encodeURIComponent(S.area)}`)
+      apiFetch(`/api/pjm/renewables/monthly?month=${ym}&area=${encodeURIComponent(S.area)}`),
+      apiFetch(`/api/pjm/emissions/monthly?month=${ym}&zone=${encodeURIComponent(zone)}`)
     ]);
-    S.daMonthlyLmp      = rLmp.status  === 'fulfilled' ? rLmp.value  : null;
-    S.daMonthlyBinding  = rBind.status === 'fulfilled' ? rBind.value : null;
-    S.daMonthlyRenewables = rRen.status === 'fulfilled' ? rRen.value : null;
+    S.daMonthlyLmp        = rLmp.status  === 'fulfilled' ? rLmp.value  : null;
+    S.daMonthlyBinding    = rBind.status === 'fulfilled' ? rBind.value : null;
+    S.daMonthlyRenewables = rRen.status  === 'fulfilled' ? rRen.value  : null;
+    S.daMonthlyEmissions  = rEm.status   === 'fulfilled' ? rEm.value   : null;
     renderDaMonthly();
     setStatus('live', 'Monthly DA loaded');
   } catch (err) {
@@ -2650,6 +2755,8 @@ function renderDaMonthly() {
       </div>`).join('');
   }
   el('binding-count-tag').textContent = `${bindData?.total_unique_constraints ?? '--'} constraints`;
+
+  renderDaMonthlyEmissions(S.daMonthlyEmissions);
 }
 
 function renderRtMonthly() {

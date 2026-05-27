@@ -77,6 +77,8 @@ const routes = {
   "/api/pjm/constraints/rt-binding": handleRtBindingConstraints,
   "/api/pjm/renewables": handleRenewables,
   "/api/pjm/renewables/monthly": handleRenewablesMonthly,
+  "/api/pjm/emissions": handleEmissions,
+  "/api/pjm/emissions/monthly": handleEmissionsMonthly,
   "/api/analysis": handleAnalysis
 };
 
@@ -341,6 +343,123 @@ async function handleRenewables(_req, res, url) {
     summary: summarizeRenewables(rows),
     rows
   });
+}
+
+async function handleEmissions(_req, res, url) {
+  const zone = cleanUpper(url.searchParams.get("zone") || "");
+  const date = requireDate(url.searchParams.get("date"));
+  const pnodeId = await resolveEmissionsPnode(zone, url.searchParams.get("pnode_id"));
+
+  const params = { datetime_beginning_ept: marketDayRange(date) };
+  if (pnodeId) params.pnode_id = pnodeId;
+
+  const rows = await getPjmRows("fivemin_marginal_emissions", params);
+
+  const normalized = rows
+    .map(row => ({
+      datetime_beginning_ept: normalizeEpt(row.datetime_beginning_ept),
+      pnode_id: numeric(row.pnode_id),
+      pnode_name: row.pnode_name,
+      marginal_co2_rate: numeric(row.marginal_co2_rate),
+      marginal_so2_rate: numeric(row.marginal_so2_rate),
+      marginal_nox_rate: numeric(row.marginal_nox_rate)
+    }))
+    .filter(row => isSelectedDate(row.datetime_beginning_ept, date));
+
+  // Aggregate 5-min intervals → hourly averages
+  const hourlyMap = new Map();
+  for (const row of normalized) {
+    const h = parseInt(String(row.datetime_beginning_ept).slice(11, 13), 10);
+    if (!Number.isFinite(h)) continue;
+    if (!hourlyMap.has(h)) hourlyMap.set(h, { co2: [], so2: [], nox: [] });
+    const bucket = hourlyMap.get(h);
+    if (row.marginal_co2_rate != null) bucket.co2.push(row.marginal_co2_rate);
+    if (row.marginal_so2_rate != null) bucket.so2.push(row.marginal_so2_rate);
+    if (row.marginal_nox_rate != null) bucket.nox.push(row.marginal_nox_rate);
+  }
+
+  const hourly = Array.from({ length: 24 }, (_, h) => {
+    const b = hourlyMap.get(h) || { co2: [], so2: [], nox: [] };
+    return {
+      hour: h,
+      marginal_co2_rate: avg(b.co2),
+      marginal_so2_rate: avg(b.so2),
+      marginal_nox_rate: avg(b.nox)
+    };
+  });
+
+  const allCo2 = hourly.map(r => r.marginal_co2_rate).filter(Number.isFinite);
+  const allSo2 = hourly.map(r => r.marginal_so2_rate).filter(Number.isFinite);
+  const allNox = hourly.map(r => r.marginal_nox_rate).filter(Number.isFinite);
+
+  sendJson(res, 200, {
+    zone: zone || null, date,
+    summary: {
+      avg_co2: avg(allCo2), peak_co2: allCo2.length ? round(Math.max(...allCo2)) : null,
+      avg_so2: avg(allSo2), peak_so2: allSo2.length ? round(Math.max(...allSo2)) : null,
+      avg_nox: avg(allNox), peak_nox: allNox.length ? round(Math.max(...allNox)) : null
+    },
+    rows: hourly
+  });
+}
+
+async function handleEmissionsMonthly(_req, res, url) {
+  const zone = cleanUpper(url.searchParams.get("zone") || "");
+  const month = requireYearMonth(url.searchParams.get("month"));
+  const pnodeId = await resolveEmissionsPnode(zone, url.searchParams.get("pnode_id"));
+
+  const params = { datetime_beginning_ept: marketMonthRange(month) };
+  if (pnodeId) params.pnode_id = pnodeId;
+
+  const rows = await getPjmRows("fivemin_marginal_emissions", params, { ttlMs: monthCacheTtl(month) });
+
+  const normalized = rows
+    .map(row => ({
+      datetime_beginning_ept: normalizeEpt(row.datetime_beginning_ept),
+      marginal_co2_rate: numeric(row.marginal_co2_rate),
+      marginal_so2_rate: numeric(row.marginal_so2_rate),
+      marginal_nox_rate: numeric(row.marginal_nox_rate)
+    }))
+    .filter(row => String(row.datetime_beginning_ept).slice(0, 7) === month);
+
+  const byDay = groupByDay(normalized);
+  const days = [...byDay.entries()].sort((a, b) => a[0].localeCompare(b[0])).map(([date, dayRows]) => ({
+    date,
+    avg_co2: avg(dayRows.map(r => r.marginal_co2_rate).filter(Number.isFinite)),
+    avg_so2: avg(dayRows.map(r => r.marginal_so2_rate).filter(Number.isFinite)),
+    avg_nox: avg(dayRows.map(r => r.marginal_nox_rate).filter(Number.isFinite))
+  }));
+
+  const allCo2 = days.map(d => d.avg_co2).filter(Number.isFinite);
+  sendJson(res, 200, {
+    zone: zone || null, month, days,
+    monthSummary: {
+      avg_co2: avg(allCo2),
+      peak_co2_day: days.reduce((b, d) => (d.avg_co2 ?? -Infinity) > (b?.avg_co2 ?? -Infinity) ? d : b, null)?.date ?? null
+    }
+  });
+}
+
+async function resolveEmissionsPnode(zone, rawPnodeId) {
+  if (rawPnodeId) return String(rawPnodeId);
+  if (!zone) return null;
+  if (/^\d+$/.test(zone)) return zone;
+
+  // Known zone → direct lookup from ZONE_PNODES map
+  if (zone in ZONE_PNODES) return String(ZONE_PNODES[zone]);
+
+  // Try resolving via PJM pnode endpoint (zone filter first, then pnode_name)
+  try {
+    const isZoneCode = Object.keys(ZONE_PNODES).includes(zone);
+    const filterParam = isZoneCode ? { zone } : { pnode_name: zone };
+    const pnodeRows = await getPjmRows("pnode", filterParam, { ttlMs: 60 * 60 * 1000 });
+    if (pnodeRows.length > 0) {
+      return pnodeRows.map(r => r.pnode_id).filter(Boolean).join(";") || null;
+    }
+  } catch {
+    // If pnode lookup fails, proceed without location filter
+  }
+  return null;
 }
 
 async function handleZoneLmpMonthly(_req, res, url) {
