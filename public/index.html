@@ -3408,11 +3408,11 @@ loadAll();
     if (!el('chat-ctx-toggle').checked) return null;
     const tab = S.tab || 'da';
     if (tab === 'rt') {
-      return { tab: 'rt', zone: S.rtZone, date: S.rtDate, granularity: S.rtGranularity, lmpSummary: S.rtData?.summary ?? null, rtBinding: (S.rtBinding || []).slice(0, 6) };
+      return { tab: 'rt', zone: S.rtZone, date: S.rtDate, granularity: S.rtGranularity, lmpSummary: S.rtData?.summary ?? null, rtBinding: (S.rtBinding?.rows || []).slice(0, 6) };
     } else if (tab === 'dart') {
       return { tab: 'dart', zone: S.dartZone, date: S.dartDate, dartHourly: S.dartHourly };
     } else {
-      return { tab: 'da', zone: S.zone1, date: S.date, mode: S.mode, lmpSummary: S.lmp1?.summary ?? null, binding: (S.binding || []).slice(0, 6), renewablesSummary: S.renewables?.summary ?? null, emissionsSummary: S.emissions?.summary ?? null };
+      return { tab: 'da', zone: S.zone1, date: S.date, mode: S.mode, lmpSummary: S.lmp1?.summary ?? null, binding: (S.binding?.rows || []).slice(0, 6), renewablesSummary: S.renewables?.summary ?? null, emissionsSummary: S.emissions?.summary ?? null };
     }
   }
 
