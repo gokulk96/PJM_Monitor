@@ -79,7 +79,8 @@ const routes = {
   "/api/pjm/renewables/monthly": handleRenewablesMonthly,
   "/api/pjm/emissions": handleEmissions,
   "/api/pjm/emissions/monthly": handleEmissionsMonthly,
-  "/api/analysis": handleAnalysis
+  "/api/analysis": handleAnalysis,
+  "/api/chat": handleChat
 };
 
 function checkAuth(req, res) {
@@ -594,6 +595,98 @@ async function handleBindingConstraintsMonthly(_req, res, url) {
   const facilities = aggregateMonthlyConstraints(filtered);
   const uniqueCount = new Set(filtered.map(r => `${r.monitored_facility}||${r.contingency_facility || ""}`)).size;
   sendJson(res, 200, { month, total_unique_constraints: uniqueCount, facilities });
+}
+
+async function handleChat(req, res) {
+  if (req.method !== "POST") {
+    sendJson(res, 405, { error: "Use POST" });
+    return;
+  }
+
+  const useGemini = Boolean(process.env.GEMINI_API_KEY);
+  const useOpenRouter = Boolean(process.env.OPENROUTER_API_KEY);
+  if (!useGemini && !useOpenRouter) {
+    sendJson(res, 400, { error: "No AI API key configured. Set GEMINI_API_KEY or OPENROUTER_API_KEY." });
+    return;
+  }
+
+  const body = await readJsonBody(req);
+  const message = String(body?.message || "").trim();
+  if (!message) {
+    sendJson(res, 400, { error: "message is required" });
+    return;
+  }
+
+  const history = Array.isArray(body?.history) ? body.history.slice(-12) : [];
+  const context = body?.context || null;
+
+  const systemText = [
+    "You are a helpful assistant embedded in a PJM electricity market analytics dashboard.",
+    "Answer questions about PJM market data, electricity market concepts, LMP pricing, congestion, DART spreads, binding constraints, renewables, and marginal emissions.",
+    "Be concise and specific. When market data is provided in the context, reference actual values. Format with markdown.",
+    context ? "\n\nCurrent dashboard data snapshot (JSON):\n" + JSON.stringify(context) : ""
+  ].join("\n").trim();
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), PJM_TIMEOUT_SECONDS * 1000);
+
+  try {
+    let reply, model;
+    if (useGemini) {
+      model = GEMINI_MODEL;
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${process.env.GEMINI_API_KEY}`;
+      const contents = [
+        { role: "user", parts: [{ text: systemText }] },
+        { role: "model", parts: [{ text: "Understood. I'm ready to help with PJM market questions." }] }
+      ];
+      for (const h of history) {
+        contents.push({ role: h.role === "assistant" ? "model" : "user", parts: [{ text: String(h.content) }] });
+      }
+      contents.push({ role: "user", parts: [{ text: message }] });
+
+      const response = await fetch(url, {
+        method: "POST", signal: controller.signal,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ contents, generationConfig: { temperature: 0.3, maxOutputTokens: 800 } })
+      });
+      const json = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        sendJson(res, response.status, { error: `Gemini: ${json?.error?.message || `HTTP ${response.status}`}` });
+        return;
+      }
+      reply = json.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
+    } else {
+      model = OPENROUTER_MODEL;
+      const messages = [{ role: "system", content: systemText }];
+      for (const h of history) messages.push({ role: h.role, content: String(h.content) });
+      messages.push({ role: "user", content: message });
+
+      const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+        method: "POST", signal: controller.signal,
+        headers: {
+          "Authorization": `Bearer ${process.env.OPENROUTER_API_KEY}`,
+          "Content-Type": "application/json",
+          "HTTP-Referer": process.env.OPENROUTER_SITE_URL || `http://localhost:${PORT}`,
+          "X-Title": process.env.OPENROUTER_APP_NAME || "PJM Market Analyst"
+        },
+        body: JSON.stringify({ model, messages, temperature: 0.3, max_tokens: 800 })
+      });
+      const json = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        sendJson(res, response.status, { error: `OpenRouter: ${json?.error?.message || `HTTP ${response.status}`}` });
+        return;
+      }
+      reply = json.choices?.[0]?.message?.content || "";
+    }
+    sendJson(res, 200, { reply, model });
+  } catch (err) {
+    const provider = useGemini ? "Gemini" : "OpenRouter";
+    const msg = err.name === "AbortError" ? `${provider}: timed out after ${PJM_TIMEOUT_SECONDS}s` : `${provider}: ${err.message}`;
+    console.error("Chat error:", err.message);
+    sendJson(res, 502, { error: msg });
+  } finally {
+    clearTimeout(timeout);
+  }
 }
 
 async function handleAnalysis(req, res) {
